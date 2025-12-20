@@ -1,0 +1,248 @@
+.rich-text-editor-wrapper {
+  @apply rounded-lg overflow-hidden border-2 border-gray-700 bg-gray-900 shadow-xl;
+}
+
+.editor-menu-bar {
+  @apply flex flex-wrap items-center gap-1 p-3 bg-gray-800 border-b-2 border-gray-700;
+}
+
+.menu-group {
+  @apply flex items-center gap-1;
+}
+
+.menu-divider {
+  @apply w-px h-6 bg-gray-600 mx-2;
+}
+
+.menu-button {
+  @apply px-3 py-2 rounded text-gray-300 hover:text-white hover:bg-gray-700;
+  min-width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.15s ease, color 0.15s ease;
+  border: 2px solid transparent;
+}
+
+.menu-button:disabled {
+  @apply opacity-50 cursor-not-allowed;
+}
+
+.menu-button.is-active {
+  @apply bg-highlight text-white;
+  border-color: #ff6b35;
+  box-shadow: 0 0 0 2px rgba(255, 107, 53, 0.2);
+}
+
+.menu-button:not(.is-active):hover {
+  @apply bg-gray-700 text-white;
+}
+
+.menu-select {
+  @apply px-3 py-2 rounded bg-gray-900 border border-gray-600 text-gray-300 hover:border-gray-500 transition-colors;
+  min-width: 140px;
+}
+
+.editor-content {
+  @apply bg-gray-900;
+}
+
+.editor-content .ProseMirror {
+  @apply text-gray-100 leading-relaxed;
+  min-height: 500px;
+  padding: 1.5rem;
+  outline: none;
+}
+
+.editor-content .ProseMirror p.is-editor-empty:first-child::before {
+  @apply text-gray-500;
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+}
+
+.editor-content .ProseMirror h1 {
+  @apply text-4xl font-bold text-white mb-6 mt-8;
+  line-height: 1.2;
+}
+
+.editor-content .ProseMirror h2 {
+  @apply text-3xl font-bold text-white mb-5 mt-7;
+  line-height: 1.3;
+}
+
+.editor-content .ProseMirror h3 {
+  @apply text-2xl font-bold text-white mb-4 mt-6;
+  line-height: 1.4;
+}
+
+.editor-content .ProseMirror h4 {
+  @apply text-xl font-bold text-white mb-3 mt-5;
+}
+
+.editor-content .ProseMirror h5 {
+  @apply text-lg font-bold text-white mb-2 mt-4;
+}
+
+.editor-content .ProseMirror h6 {
+  @apply text-base font-bold text-white mb-2 mt-3;
+}
+
+.editor-content .ProseMirror p {
+  @apply mb-4 text-gray-200;
+  line-height: 1.7;
+}
+
+.editor-content .ProseMirror ul,
+.editor-content .ProseMirror ol {
+  @apply pl-6 my-4 space-y-2;
+}
+
+.editor-content .ProseMirror ul {
+  @apply list-disc;
+}
+
+.editor-content .ProseMirror ol {
+  @apply list-decimal;
+}
+
+.editor-content .ProseMirror li {
+  @apply text-gray-200;
+  line-height: 1.7;
+}
+
+.editor-content .ProseMirror li > p {
+  @apply mb-2;
+}
+
+.editor-content .ProseMirror blockquote {
+  @apply border-l-4 border-highlight bg-gray-800/50 py-3 px-6 my-6 italic;
+}
+
+.editor-content .ProseMirror blockquote p {
+  @apply text-gray-300 mb-0;
+}
+
+.editor-content .ProseMirror code {
+  @apply bg-gray-800 text-green-400 px-2 py-1 rounded font-mono text-sm;
+}
+
+.editor-content .ProseMirror pre {
+  @apply bg-gray-950 text-green-400 p-5 rounded-lg my-6 overflow-x-auto border border-gray-700;
+  font-family: 'Courier New', Courier, monospace;
+}
+
+.editor-content .ProseMirror pre code {
+  @apply bg-transparent p-0 text-sm;
+  display: block;
+  line-height: 1.6;
+}
+
+.editor-content .ProseMirror .hljs-comment {
+  @apply text-gray-500;
+}
+
+.editor-content .ProseMirror .hljs-keyword {
+  @apply text-purple-400;
+}
+
+.editor-content .ProseMirror .hljs-string {
+  @apply text-yellow-300;
+}
+
+.editor-content .ProseMirror .hljs-function {
+  @apply text-blue-400;
+}
+
+.editor-content .ProseMirror .hljs-number {
+  @apply text-blue-400;
+}
+
+.editor-content .ProseMirror a {
+  @apply text-highlight hover:text-blue-400 underline cursor-pointer transition-colors;
+}
+
+.editor-content .ProseMirror img {
+  @apply max-w-full h-auto rounded-lg my-6 shadow-lg;
+}
+
+.editor-content .ProseMirror img.ProseMirror-selectednode {
+  @apply outline outline-2 outline-highlight outline-offset-2;
+}
+
+.editor-content .ProseMirror iframe {
+  @apply rounded-lg my-6 shadow-lg w-full;
+  max-width: 100%;
+}
+
+.editor-content .ProseMirror table {
+  @apply w-full border-collapse my-6 shadow-lg rounded-lg overflow-hidden;
+}
+
+.editor-content .ProseMirror td,
+.editor-content .ProseMirror th {
+  @apply border border-gray-600 p-3 text-gray-200;
+  min-width: 100px;
+}
+
+.editor-content .ProseMirror th {
+  @apply bg-gray-800 font-bold text-white;
+}
+
+.editor-content .ProseMirror td {
+  @apply bg-gray-900;
+}
+
+.editor-content .ProseMirror .selectedCell {
+  @apply bg-gray-700;
+}
+
+.editor-content .ProseMirror mark {
+  @apply bg-yellow-500/30 text-yellow-200 px-1 rounded;
+}
+
+.editor-content .ProseMirror hr {
+  @apply border-0 border-t-2 border-gray-700 my-8;
+}
+
+.editor-content .ProseMirror .text-left {
+  text-align: left;
+}
+
+.editor-content .ProseMirror .text-center {
+  text-align: center;
+}
+
+.editor-content .ProseMirror .text-right {
+  text-align: right;
+}
+
+.editor-content .ProseMirror .text-justify {
+  text-align: justify;
+}
+
+.editor-content .ProseMirror:focus {
+  @apply outline-none;
+}
+
+.editor-content .ProseMirror ::selection {
+  @apply bg-highlight/30;
+}
+
+.editor-content .ProseMirror::-webkit-scrollbar {
+  @apply w-2;
+}
+
+.editor-content .ProseMirror::-webkit-scrollbar-track {
+  @apply bg-gray-800;
+}
+
+.editor-content .ProseMirror::-webkit-scrollbar-thumb {
+  @apply bg-gray-600 rounded-full;
+}
+
+.editor-content .ProseMirror::-webkit-scrollbar-thumb:hover {
+  @apply bg-gray-500;
+}

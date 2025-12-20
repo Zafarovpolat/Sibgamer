@@ -1,0 +1,52 @@
+# =========================
+# Backend (.NET)
+# =========================
+backend/bin/
+backend/obj/
+backend/.vs/
+backend/*.user
+backend/*.suo
+backend/wwwroot/uploads/*
+!backend/wwwroot/uploads/.gitkeep
+
+# Секреты (ВАЖНО!)
+backend/appsettings.Development.json
+backend/appsettings.Production.json
+
+# =========================
+# Frontend (Node.js/React)
+# =========================
+frontend/node_modules/
+frontend/dist/
+frontend/.env
+frontend/.env.local
+frontend/.env.production
+
+# =========================
+# IDE
+# =========================
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# =========================
+# OS
+# =========================
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# =========================
+# Logs
+# =========================
+*.log
+logs/
+npm-debug.log*
+
+# =========================
+# Misc
+# =========================
+*.tmp
+*.temp
