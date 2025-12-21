@@ -10,6 +10,9 @@ public class ApplicationDbContext : DbContext
     {
     }
 
+    // ============================================
+    // DbSets
+    // ============================================
     public DbSet<User> Users { get; set; }
     public DbSet<Server> Servers { get; set; }
     public DbSet<SliderImage> SliderImages { get; set; }
@@ -57,6 +60,19 @@ public class ApplicationDbContext : DbContext
     {
         base.OnModelCreating(modelBuilder);
 
+        // Определяем используется ли PostgreSQL
+        var isPostgres = Database.ProviderName?.Contains("Npgsql") == true 
+            || Database.ProviderName?.Contains("PostgreSQL") == true;
+
+        if (isPostgres)
+        {
+            // PostgreSQL: применяем snake_case именование
+            ApplySnakeCaseNaming(modelBuilder);
+        }
+
+        // ============================================
+        // User
+        // ============================================
         modelBuilder.Entity<User>()
             .HasIndex(u => u.Username)
             .IsUnique();
@@ -65,6 +81,9 @@ public class ApplicationDbContext : DbContext
             .HasIndex(u => u.Email)
             .IsUnique();
 
+        // ============================================
+        // News
+        // ============================================
         modelBuilder.Entity<News>()
             .HasIndex(n => n.Slug)
             .IsUnique();
@@ -85,6 +104,9 @@ public class ApplicationDbContext : DbContext
             .HasIndex(l => new { l.NewsId, l.UserId })
             .IsUnique();
 
+        // ============================================
+        // Site Settings
+        // ============================================
         modelBuilder.Entity<SiteSetting>()
             .HasIndex(s => s.Key)
             .IsUnique();
@@ -92,6 +114,9 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<SiteSetting>()
             .HasIndex(s => s.Category);
 
+        // ============================================
+        // Events
+        // ============================================
         modelBuilder.Entity<Event>()
             .HasIndex(e => e.Slug)
             .IsUnique();
@@ -112,6 +137,9 @@ public class ApplicationDbContext : DbContext
             .HasIndex(l => new { l.EventId, l.UserId })
             .IsUnique();
 
+        // ============================================
+        // Views
+        // ============================================
         modelBuilder.Entity<NewsView>()
             .HasIndex(v => new { v.NewsId, v.UserId, v.ViewDate });
 
@@ -130,12 +158,18 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<CustomPageView>()
             .HasIndex(v => new { v.CustomPageId, v.IpAddress, v.ViewDate });
 
+        // ============================================
+        // Password Reset
+        // ============================================
         modelBuilder.Entity<PasswordResetToken>()
             .HasIndex(t => t.Token);
 
         modelBuilder.Entity<PasswordResetToken>()
             .HasIndex(t => new { t.UserId, t.IsUsed });
 
+        // ============================================
+        // Tariffs
+        // ============================================
         modelBuilder.Entity<AdminTariffGroup>()
             .HasIndex(g => new { g.ServerId, g.IsActive });
 
@@ -151,6 +185,9 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<VipTariffOption>()
             .HasIndex(o => new { o.TariffId, o.IsActive });
 
+        // ============================================
+        // Donations
+        // ============================================
         modelBuilder.Entity<DonationTransaction>()
             .HasIndex(t => t.TransactionId)
             .IsUnique();
@@ -161,6 +198,9 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<DonationTransaction>()
             .HasIndex(t => t.SteamId);
 
+        // ============================================
+        // Privileges
+        // ============================================
         modelBuilder.Entity<UserAdminPrivilege>()
             .HasIndex(p => new { p.UserId, p.ServerId, p.IsActive });
 
@@ -179,19 +219,31 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<UserVipPrivilege>()
             .HasIndex(p => p.ExpiresAt);
 
+        // ============================================
+        // Notifications
+        // ============================================
         modelBuilder.Entity<Notification>()
             .HasIndex(n => new { n.UserId, n.IsRead });
-
-        modelBuilder.Entity<VipApplication>()
-            .HasIndex(a => new { a.UserId, a.ServerId, a.Status });
 
         modelBuilder.Entity<Notification>()
             .HasIndex(n => n.CreatedAt);
 
+        // ============================================
+        // VIP Applications
+        // ============================================
+        modelBuilder.Entity<VipApplication>()
+            .HasIndex(a => new { a.UserId, a.ServerId, a.Status });
+
+        // ============================================
+        // Blocked IPs
+        // ============================================
         modelBuilder.Entity<BlockedIp>()
             .HasIndex(b => b.IpAddress)
             .IsUnique();
 
+        // ============================================
+        // Telegram
+        // ============================================
         modelBuilder.Entity<TelegramSubscriber>()
             .HasIndex(t => t.ChatId)
             .IsUnique();
@@ -199,6 +251,9 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<TelegramSubscriber>()
             .HasIndex(t => t.UserId);
 
+        // ============================================
+        // Custom Pages
+        // ============================================
         modelBuilder.Entity<CustomPage>()
             .HasIndex(p => p.Slug)
             .IsUnique();
@@ -209,5 +264,88 @@ public class ApplicationDbContext : DbContext
             .HasForeignKey(p => p.AuthorId)
             .OnDelete(DeleteBehavior.Restrict);
     }
-}
 
+    /// <summary>
+    /// Применяет snake_case именование для PostgreSQL
+    /// </summary>
+    private static void ApplySnakeCaseNaming(ModelBuilder modelBuilder)
+    {
+        foreach (var entity in modelBuilder.Model.GetEntityTypes())
+        {
+            // Имя таблицы
+            var tableName = entity.GetTableName();
+            if (!string.IsNullOrEmpty(tableName))
+            {
+                entity.SetTableName(ToSnakeCase(tableName));
+            }
+
+            // Имена колонок
+            foreach (var property in entity.GetProperties())
+            {
+                var columnName = property.GetColumnName();
+                if (!string.IsNullOrEmpty(columnName))
+                {
+                    property.SetColumnName(ToSnakeCase(columnName));
+                }
+            }
+
+            // Имена ключей
+            foreach (var key in entity.GetKeys())
+            {
+                var keyName = key.GetName();
+                if (!string.IsNullOrEmpty(keyName))
+                {
+                    key.SetName(ToSnakeCase(keyName));
+                }
+            }
+
+            // Имена FK
+            foreach (var fk in entity.GetForeignKeys())
+            {
+                var fkName = fk.GetConstraintName();
+                if (!string.IsNullOrEmpty(fkName))
+                {
+                    fk.SetConstraintName(ToSnakeCase(fkName));
+                }
+            }
+
+            // Имена индексов
+            foreach (var index in entity.GetIndexes())
+            {
+                var indexName = index.GetDatabaseName();
+                if (!string.IsNullOrEmpty(indexName))
+                {
+                    index.SetDatabaseName(ToSnakeCase(indexName));
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// Конвертирует PascalCase/camelCase в snake_case
+    /// </summary>
+    private static string ToSnakeCase(string input)
+    {
+        if (string.IsNullOrEmpty(input))
+            return input;
+
+        var result = new System.Text.StringBuilder();
+        result.Append(char.ToLowerInvariant(input[0]));
+
+        for (int i = 1; i < input.Length; i++)
+        {
+            var c = input[i];
+            if (char.IsUpper(c))
+            {
+                result.Append('_');
+                result.Append(char.ToLowerInvariant(c));
+            }
+            else
+            {
+                result.Append(c);
+            }
+        }
+
+        return result.ToString();
+    }
+}
