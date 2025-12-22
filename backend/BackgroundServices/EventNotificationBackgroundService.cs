@@ -10,6 +10,9 @@ public class EventNotificationBackgroundService : BackgroundService
 {
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<EventNotificationBackgroundService> _logger;
+    private const int STARTUP_DELAY_SECONDS = 45; // Ждём пока БД "проснётся"
+    private const int ERROR_RETRY_DELAY_SECONDS = 60;
+    private const int CHECK_INTERVAL_MINUTES = 5;
 
     public EventNotificationBackgroundService(IServiceProvider serviceProvider, ILogger<EventNotificationBackgroundService> logger)
     {
@@ -19,139 +22,110 @@ public class EventNotificationBackgroundService : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        // Отложенный старт - даём время на инициализацию БД
+        _logger.LogInformation("EventNotificationBackgroundService: ожидание {Delay} секунд перед стартом...", STARTUP_DELAY_SECONDS);
+        
+        try
+        {
+            await Task.Delay(TimeSpan.FromSeconds(STARTUP_DELAY_SECONDS), stoppingToken);
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+
+        _logger.LogInformation("EventNotificationBackgroundService: запуск основного цикла");
+
         while (!stoppingToken.IsCancellationRequested)
         {
             try
             {
-                using (var scope = _serviceProvider.CreateScope())
-                {
-                    var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-                    var telegramService = scope.ServiceProvider.GetRequiredService<ITelegramService>();
-
-                    var now = DateTimeHelper.GetServerLocalTime();
-
-                    var startingEvents = await context.Events
-                        .Where(e => e.IsPublished && 
-                                   !e.IsStartNotificationSent && 
-                                   e.StartDate <= now)
-                        .ToListAsync();
-
-                    foreach (var eventItem in startingEvents)
-                    {
-                        try
-                        {
-                            await telegramService.SendEventStartedNotificationAsync(eventItem);
-                            eventItem.IsStartNotificationSent = true;
-                            await context.SaveChangesAsync();
-                            _logger.LogInformation("Sent start notification for event {EventId}: {Title}", eventItem.Id, eventItem.Title);
-                        }
-                        catch (Exception ex)
-                        {
-                            _logger.LogError(ex, "Failed to send start notification for event {EventId}", eventItem.Id);
-                        }
-                    }
-
-                    var endingEvents = await context.Events
-                        .Where(e => e.IsPublished && 
-                                   !e.IsEndNotificationSent && 
-                                   e.EndDate <= now)
-                        .ToListAsync();
-
-                    foreach (var eventItem in endingEvents)
-                    {
-                        try
-                        {
-                            await telegramService.SendEventEndedNotificationAsync(eventItem);
-                            eventItem.IsEndNotificationSent = true;
-                            await context.SaveChangesAsync();
-                            _logger.LogInformation("Sent end notification for event {EventId}: {Title}", eventItem.Id, eventItem.Title);
-                        }
-                        catch (Exception ex)
-                        {
-                            _logger.LogError(ex, "Failed to send end notification for event {EventId}", eventItem.Id);
-                        }
-                    }
-
-                    var nextEventTime = await GetNextEventTimeAsync(context, now);
-                    if (nextEventTime.HasValue)
-                    {
-                        var delay = nextEventTime.Value - now;
-                        if (delay > TimeSpan.Zero)
-                        {
-                            var maxDelay = TimeSpan.FromMinutes(1); 
-                            if (delay > maxDelay)
-                            {
-                                _logger.LogWarning("Next event is far in the future ({Delay}). Clamping wait to {MaxDelay} and will re-evaluate sooner.", delay, maxDelay);
-                                await Task.Delay(maxDelay, stoppingToken);
-                            }
-                            else
-                            {
-                                _logger.LogInformation("Waiting until {NextTime} for next event check", nextEventTime.Value);
-                                await Task.Delay(delay, stoppingToken);
-                            }
-                        }
-                        else
-                        {
-                            await Task.Delay(TimeSpan.FromSeconds(1), stoppingToken);
-                        }
-                    }
-                    else
-                    {
-                        _logger.LogInformation("No upcoming events, waiting 1 minute");
-                        await Task.Delay(TimeSpan.FromMinutes(1), stoppingToken);
-                    }
-                }
+                await ProcessNotificationsAsync(stoppingToken);
+                
+                // Фиксированный интервал проверки вместо динамического
+                await Task.Delay(TimeSpan.FromMinutes(CHECK_INTERVAL_MINUTES), stoppingToken);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
-                _logger.LogInformation("EventNotificationBackgroundService cancellation requested; stopping service.");
+                _logger.LogInformation("EventNotificationBackgroundService: остановка по запросу");
                 break;
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error in EventNotificationBackgroundService");
+                
                 try
                 {
-                    await Task.Delay(TimeSpan.FromSeconds(30), stoppingToken); 
+                    await Task.Delay(TimeSpan.FromSeconds(ERROR_RETRY_DELAY_SECONDS), stoppingToken);
                 }
-                catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+                catch (OperationCanceledException)
                 {
-                    _logger.LogInformation("EventNotificationBackgroundService cancellation requested during error delay; stopping service.");
                     break;
                 }
             }
         }
     }
 
-    private async Task<DateTime?> GetNextEventTimeAsync(ApplicationDbContext context, DateTime now)
+    private async Task ProcessNotificationsAsync(CancellationToken stoppingToken)
     {
-        var nextStart = await context.Events
-            .Where(e => e.IsPublished && !e.IsStartNotificationSent && e.StartDate > now)
-            .OrderBy(e => e.StartDate)
-            .Select(e => (DateTime?)e.StartDate)
-            .FirstOrDefaultAsync();
+        using var scope = _serviceProvider.CreateScope();
+        var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var telegramService = scope.ServiceProvider.GetRequiredService<ITelegramService>();
 
-        var nextEnd = await context.Events
-            .Where(e => e.IsPublished && !e.IsEndNotificationSent && e.EndDate > now)
-            .OrderBy(e => e.EndDate)
-            .Select(e => (DateTime?)e.EndDate)
-            .FirstOrDefaultAsync();
+        var now = DateTimeHelper.GetServerLocalTime();
 
-        if (nextStart.HasValue && nextEnd.HasValue)
+        // Уведомления о начале событий
+        var startingEvents = await context.Events
+            .Where(e => e.IsPublished && 
+                       !e.IsStartNotificationSent && 
+                       e.StartDate <= now)
+            .ToListAsync(stoppingToken);
+
+        foreach (var eventItem in startingEvents)
         {
-            return nextStart.Value < nextEnd.Value ? nextStart.Value : nextEnd.Value;
+            if (stoppingToken.IsCancellationRequested) break;
+            
+            try
+            {
+                await telegramService.SendEventStartedNotificationAsync(eventItem);
+                eventItem.IsStartNotificationSent = true;
+                await context.SaveChangesAsync(stoppingToken);
+                _logger.LogInformation("Sent start notification for event {EventId}: {Title}", eventItem.Id, eventItem.Title);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to send start notification for event {EventId}", eventItem.Id);
+            }
         }
-        else if (nextStart.HasValue)
+
+        // Уведомления о завершении событий
+        var endingEvents = await context.Events
+            .Where(e => e.IsPublished && 
+                       !e.IsEndNotificationSent && 
+                       e.EndDate <= now)
+            .ToListAsync(stoppingToken);
+
+        foreach (var eventItem in endingEvents)
         {
-            return nextStart.Value;
+            if (stoppingToken.IsCancellationRequested) break;
+            
+            try
+            {
+                await telegramService.SendEventEndedNotificationAsync(eventItem);
+                eventItem.IsEndNotificationSent = true;
+                await context.SaveChangesAsync(stoppingToken);
+                _logger.LogInformation("Sent end notification for event {EventId}: {Title}", eventItem.Id, eventItem.Title);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to send end notification for event {EventId}", eventItem.Id);
+            }
         }
-        else if (nextEnd.HasValue)
+
+        if (startingEvents.Any() || endingEvents.Any())
         {
-            return nextEnd.Value;
-        }
-        else
-        {
-            return null;
+            _logger.LogInformation("Processed {StartCount} start and {EndCount} end notifications", 
+                startingEvents.Count, endingEvents.Count);
         }
     }
 }

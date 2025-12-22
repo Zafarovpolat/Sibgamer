@@ -49,15 +49,35 @@ if (usePostgres)
     }
     
     builder.Services.AddDbContext<ApplicationDbContext>(options =>
-        options.UseNpgsql(connectionString));
+    {
+        options.UseNpgsql(connectionString, npgsqlOptions =>
+        {
+            npgsqlOptions.CommandTimeout(60); // Увеличиваем таймаут до 60 секунд
+            npgsqlOptions.EnableRetryOnFailure(
+                maxRetryCount: 5,
+                maxRetryDelay: TimeSpan.FromSeconds(10),
+                errorCodesToAdd: null
+            );
+        });
+        options.EnableServiceProviderCaching(true);
+    });
     
-    Console.WriteLine("Using PostgreSQL database");
+    Console.WriteLine("Using PostgreSQL database with retry logic");
 }
 else
 {
     // MySQL (оригинальная конфигурация)
     builder.Services.AddDbContext<ApplicationDbContext>(options =>
-        options.UseMySql(connectionString, new MySqlServerVersion(new Version(8, 0, 21))));
+        options.UseMySql(connectionString, new MySqlServerVersion(new Version(8, 0, 21)),
+            mysqlOptions =>
+            {
+                mysqlOptions.CommandTimeout(60);
+                mysqlOptions.EnableRetryOnFailure(
+                    maxRetryCount: 5,
+                    maxRetryDelay: TimeSpan.FromSeconds(10),
+                    errorNumbersToAdd: null
+                );
+            }));
     
     Console.WriteLine("Using MySQL database");
 }
@@ -80,7 +100,7 @@ builder.Services.AddScoped<ITelegramService, TelegramService>();
 builder.Services.AddHttpClient();
 
 // ============================================
-// Background Services
+// Background Services (с отложенным стартом)
 // ============================================
 builder.Services.AddHostedService<ServerMonitoringService>();
 builder.Services.AddHostedService<PrivilegeExpirationService>();
@@ -237,30 +257,38 @@ app.UseAuthorization();
 app.MapControllers();
 
 // ============================================
-// Database Connection Check
+// Database Connection Check (с retry)
 // ============================================
 using (var scope = app.Services.CreateScope())
 {
     var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
     var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
 
-    try
+    for (int attempt = 1; attempt <= 5; attempt++)
     {
-        logger.LogInformation("Проверка подключения к базе данных...");
+        try
+        {
+            logger.LogInformation("Проверка подключения к базе данных (попытка {Attempt}/5)...", attempt);
 
-        var canConnect = await context.Database.CanConnectAsync();
-        if (canConnect)
-        {
-            logger.LogInformation("Подключение к базе данных успешно.");
+            var canConnect = await context.Database.CanConnectAsync();
+            if (canConnect)
+            {
+                logger.LogInformation("Подключение к базе данных успешно.");
+                break;
+            }
+            else
+            {
+                logger.LogWarning("Не удалось подключиться к базе данных.");
+            }
         }
-        else
+        catch (Exception ex)
         {
-            logger.LogWarning("Не удалось подключиться к базе данных.");
+            logger.LogWarning(ex, "Ошибка при подключении к базе данных (попытка {Attempt}/5).", attempt);
+            if (attempt < 5)
+            {
+                await Task.Delay(TimeSpan.FromSeconds(5 * attempt)); // Экспоненциальная задержка
+            }
         }
-    }
-    catch (Exception ex)
-    {
-        logger.LogError(ex, "Ошибка при подключении к базе данных.");
     }
 }
 
@@ -272,7 +300,6 @@ app.Run();
 
 /// <summary>
 /// Конвертация PostgreSQL URL (Supabase/Heroku формат) в Npgsql connection string
-/// postgres://user:password@host:port/database -> Host=...;Port=...;Database=...;Username=...;Password=...
 /// </summary>
 static string ConvertPostgresUrl(string url)
 {
@@ -296,7 +323,8 @@ static string ConvertPostgresUrl(string url)
             sslMode = query["sslmode"];
         }
 
-        return $"Host={host};Port={port};Database={database};Username={username};Password={password};SSL Mode={sslMode};Trust Server Certificate=true";
+        // Добавляем параметры для стабильности соединения
+        return $"Host={host};Port={port};Database={database};Username={username};Password={password};SSL Mode={sslMode};Trust Server Certificate=true;Pooling=true;Minimum Pool Size=1;Maximum Pool Size=10;Connection Idle Lifetime=300;Connection Pruning Interval=10;Keepalive=30;Timeout=60";
     }
     catch (Exception ex)
     {
