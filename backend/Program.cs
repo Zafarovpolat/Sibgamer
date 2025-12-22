@@ -25,7 +25,7 @@ builder.Services.Configure<FormOptions>(options =>
 });
 
 // ============================================
-// Database Configuration
+// Database Configuration (PostgreSQL/MySQL)
 // ============================================
 var connectionString = Environment.GetEnvironmentVariable("DATABASE_URL")
     ?? builder.Configuration.GetConnectionString("DefaultConnection");
@@ -50,16 +50,16 @@ if (usePostgres)
     {
         options.UseNpgsql(connectionString, npgsqlOptions =>
         {
-            npgsqlOptions.CommandTimeout(120);
+            npgsqlOptions.CommandTimeout(30); // Нормальный таймаут для Neon
             npgsqlOptions.EnableRetryOnFailure(
-                maxRetryCount: 10,
-                maxRetryDelay: TimeSpan.FromSeconds(30),
+                maxRetryCount: 3,
+                maxRetryDelay: TimeSpan.FromSeconds(5),
                 errorCodesToAdd: null
             );
         });
     });
     
-    Console.WriteLine("Using PostgreSQL database with enhanced retry logic");
+    Console.WriteLine("Using PostgreSQL database");
 }
 else
 {
@@ -67,12 +67,8 @@ else
         options.UseMySql(connectionString, new MySqlServerVersion(new Version(8, 0, 21)),
             mysqlOptions =>
             {
-                mysqlOptions.CommandTimeout(120);
-                mysqlOptions.EnableRetryOnFailure(
-                    maxRetryCount: 10,
-                    maxRetryDelay: TimeSpan.FromSeconds(30),
-                    errorNumbersToAdd: null
-                );
+                mysqlOptions.CommandTimeout(30);
+                mysqlOptions.EnableRetryOnFailure(3, TimeSpan.FromSeconds(5), null);
             }));
     
     Console.WriteLine("Using MySQL database");
@@ -96,16 +92,15 @@ builder.Services.AddScoped<ITelegramService, TelegramService>();
 builder.Services.AddHttpClient();
 
 // ============================================
-// Background Services - ОТКЛЮЧЕНЫ для диагностики
+// Background Services
 // ============================================
-// Раскомментируйте после того как основной сайт заработает
-// builder.Services.AddHostedService<ServerMonitoringService>();
-// builder.Services.AddHostedService<PrivilegeExpirationService>();
-// builder.Services.AddHostedService<PendingPaymentCancellationService>();
-// builder.Services.AddHostedService<AdminSyncBackgroundService>();
-// builder.Services.AddHostedService<VipSyncBackgroundService>();
-// builder.Services.AddHostedService<TelegramBotBackgroundService>();
-// builder.Services.AddHostedService<EventNotificationBackgroundService>();
+builder.Services.AddHostedService<ServerMonitoringService>();
+builder.Services.AddHostedService<PrivilegeExpirationService>();
+builder.Services.AddHostedService<PendingPaymentCancellationService>();
+builder.Services.AddHostedService<AdminSyncBackgroundService>();
+builder.Services.AddHostedService<VipSyncBackgroundService>();
+builder.Services.AddHostedService<TelegramBotBackgroundService>();
+builder.Services.AddHostedService<EventNotificationBackgroundService>();
 
 // ============================================
 // JWT Authentication
@@ -178,33 +173,31 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 builder.Services.AddAuthorization();
 
 // ============================================
-// CORS - Расширенная настройка
+// CORS
 // ============================================
 var frontendUrl = Environment.GetEnvironmentVariable("FRONTEND_URL")
     ?? builder.Configuration["FrontendUrl"]
     ?? "http://localhost:5173";
 
+var allowedOrigins = new List<string> { frontendUrl };
+if (frontendUrl.StartsWith("https://") && !frontendUrl.Contains("www."))
+{
+    allowedOrigins.Add(frontendUrl.Replace("https://", "https://www."));
+}
+if (!frontendUrl.Contains("localhost"))
+{
+    allowedOrigins.Add("http://localhost:5173");
+    allowedOrigins.Add("http://localhost:3000");
+}
+
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowFrontend", policy =>
     {
-        policy.WithOrigins(
-                frontendUrl,
-                frontendUrl.Replace("https://", "https://www."),
-                "http://localhost:5173",
-                "http://localhost:3000"
-            )
+        policy.WithOrigins(allowedOrigins.ToArray())
             .AllowAnyHeader()
             .AllowAnyMethod()
             .AllowCredentials();
-    });
-    
-    // Добавляем политику для всех origins (для отладки)
-    options.AddPolicy("AllowAll", policy =>
-    {
-        policy.AllowAnyOrigin()
-            .AllowAnyHeader()
-            .AllowAnyMethod();
     });
 });
 
@@ -227,87 +220,53 @@ builder.Services.AddSwaggerGen();
 // ============================================
 var app = builder.Build();
 
-var forwardedHeadersOptions = new ForwardedHeadersOptions
+app.UseForwardedHeaders(new ForwardedHeadersOptions
 {
     ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto
-};
-forwardedHeadersOptions.KnownNetworks.Clear();
-forwardedHeadersOptions.KnownProxies.Clear();
-app.UseForwardedHeaders(forwardedHeadersOptions);
+});
 
 app.UseSwagger();
 app.UseSwaggerUI();
 
-// Используем AllowAll для отладки - потом вернуть на AllowFrontend
-app.UseCors("AllowAll");
+app.UseCors("AllowFrontend");
 
 app.UseStaticFiles();
 
-// ОТКЛЮЧАЕМ IP блокировку для отладки
-// app.UseMiddleware<backend.Middleware.IpBlockMiddleware>();
+app.UseMiddleware<backend.Middleware.IpBlockMiddleware>();
 
 app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
 
-// ============================================
-// Health Check Endpoint
-// ============================================
+// Health Check
 app.MapGet("/health", async (ApplicationDbContext context) =>
 {
     try
     {
         var canConnect = await context.Database.CanConnectAsync();
-        return Results.Ok(new { 
-            status = canConnect ? "healthy" : "unhealthy",
-            database = canConnect ? "connected" : "disconnected",
-            timestamp = DateTime.UtcNow
-        });
+        return Results.Ok(new { status = "healthy", database = canConnect });
     }
     catch (Exception ex)
     {
-        return Results.Ok(new { 
-            status = "unhealthy",
-            database = "error",
-            error = ex.Message,
-            timestamp = DateTime.UtcNow
-        });
+        return Results.Ok(new { status = "unhealthy", error = ex.Message });
     }
 });
 
-// ============================================
-// Database Warm-up
-// ============================================
+// Database warm-up
 using (var scope = app.Services.CreateScope())
 {
     var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
     var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
 
-    logger.LogInformation("Прогрев базы данных...");
-    
-    for (int attempt = 1; attempt <= 5; attempt++)
+    try
     {
-        try
-        {
-            // Простой запрос для "пробуждения" БД
-            var canConnect = await context.Database.CanConnectAsync();
-            if (canConnect)
-            {
-                // Делаем простой запрос чтобы соединение было "горячим"
-                await context.Database.ExecuteSqlRawAsync("SELECT 1");
-                logger.LogInformation("База данных готова (попытка {Attempt})", attempt);
-                break;
-            }
-        }
-        catch (Exception ex)
-        {
-            logger.LogWarning("Попытка {Attempt}/5 подключения к БД не удалась: {Error}", attempt, ex.Message);
-            if (attempt < 5)
-            {
-                await Task.Delay(TimeSpan.FromSeconds(10 * attempt));
-            }
-        }
+        await context.Database.CanConnectAsync();
+        logger.LogInformation("Database connection established");
+    }
+    catch (Exception ex)
+    {
+        logger.LogError(ex, "Failed to connect to database");
     }
 }
 
@@ -318,39 +277,16 @@ app.Run();
 // ============================================
 static string ConvertPostgresUrl(string url)
 {
-    try
-    {
-        var uri = new Uri(url);
-        var userInfo = uri.UserInfo.Split(':');
-        var username = userInfo[0];
-        var password = userInfo.Length > 1 ? Uri.UnescapeDataString(userInfo[1]) : "";
-        var host = uri.Host;
-        var port = uri.Port > 0 ? uri.Port : 5432;
-        var database = uri.AbsolutePath.TrimStart('/');
+    var uri = new Uri(url);
+    var userInfo = uri.UserInfo.Split(':');
+    var username = userInfo[0];
+    var password = userInfo.Length > 1 ? Uri.UnescapeDataString(userInfo[1]) : "";
+    var host = uri.Host;
+    var port = uri.Port > 0 ? uri.Port : 5432;
+    var database = uri.AbsolutePath.TrimStart('/');
 
-        var query = System.Web.HttpUtility.ParseQueryString(uri.Query);
-        var sslMode = query["sslmode"] ?? "Require";
+    var query = System.Web.HttpUtility.ParseQueryString(uri.Query);
+    var sslMode = query["sslmode"] ?? "Require";
 
-        // Оптимизированные параметры для Supabase
-        return $"Host={host};" +
-               $"Port={port};" +
-               $"Database={database};" +
-               $"Username={username};" +
-               $"Password={password};" +
-               $"SSL Mode={sslMode};" +
-               $"Trust Server Certificate=true;" +
-               $"Pooling=true;" +
-               $"Minimum Pool Size=0;" +
-               $"Maximum Pool Size=5;" +        // Уменьшаем пул
-               $"Connection Idle Lifetime=60;" + // Быстрее закрываем неиспользуемые
-               $"Connection Pruning Interval=10;" +
-               $"Keepalive=15;" +               // Чаще keepalive
-               $"Timeout=120;" +                // Увеличенный таймаут
-               $"Command Timeout=120;" +
-               $"Internal Command Timeout=120";
-    }
-    catch (Exception ex)
-    {
-        throw new InvalidOperationException($"Failed to parse DATABASE_URL: {ex.Message}", ex);
-    }
+    return $"Host={host};Port={port};Database={database};Username={username};Password={password};SSL Mode={sslMode};Trust Server Certificate=true;Pooling=true;Minimum Pool Size=1;Maximum Pool Size=20;Connection Idle Lifetime=300;Keepalive=30;Timeout=30;Command Timeout=30";
 }
