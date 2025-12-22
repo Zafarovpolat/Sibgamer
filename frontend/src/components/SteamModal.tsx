@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { X } from 'lucide-react';
-import axios from 'axios';
-import { API_URL } from '../config/api';
+import api from '../lib/axios';  // ✅ Используем настроенный api
 import { useAuthStore } from '../store/authStore';
 import toast from 'react-hot-toast';
 import { getErrorMessage } from '../utils/errorUtils';
@@ -15,7 +14,7 @@ interface SteamModalProps {
 const SteamModal = ({ isOpen, onClose, onSuccess }: SteamModalProps) => {
   const [steamInput, setSteamInput] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const { token, updateUser } = useAuthStore();
+  const { updateUser } = useAuthStore();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -28,15 +27,9 @@ const SteamModal = ({ isOpen, onClose, onSuccess }: SteamModalProps) => {
     setIsSubmitting(true);
 
     try {
-      const response = await axios.put(
-        `${API_URL}/profile/steam`,
-        { steamInput: steamInput.trim() },
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
+      const response = await api.put('/profile/steam', {  // ✅ Используем api
+        steamInput: steamInput.trim()
+      });
 
       updateUser(response.data);
       toast.success('Steam ID успешно добавлен!');
