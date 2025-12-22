@@ -1999,33 +1999,57 @@ public class AdminDonationController : ControllerBase
         }
     }
 
-    private async Task<bool> TableHasColumnAsync(string tableName, string columnName)
+private async Task<bool> TableHasColumnAsync(string tableName, string columnName)
+{
+    try
     {
         var conn = _context.Database.GetDbConnection();
-        await using (var cmd = conn.CreateCommand())
+        if (conn.State != System.Data.ConnectionState.Open)
         {
-            if (conn.State != System.Data.ConnectionState.Open)
-            {
-                await conn.OpenAsync();
-            }
-
-            cmd.CommandText = "SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = @table AND COLUMN_NAME = @column";
-
-            var pTable = cmd.CreateParameter();
-            pTable.ParameterName = "@table";
-            pTable.Value = tableName;
-            cmd.Parameters.Add(pTable);
-
-            var pCol = cmd.CreateParameter();
-            pCol.ParameterName = "@column";
-            pCol.Value = columnName;
-            cmd.Parameters.Add(pCol);
-
-            var res = await cmd.ExecuteScalarAsync();
-            var cnt = Convert.ToInt32(res ?? 0);
-            return cnt > 0;
+            await conn.OpenAsync();
         }
+
+        await using var cmd = conn.CreateCommand();
+        
+        // Проверяем тип базы данных
+        var isPostgres = conn.GetType().Name.Contains("Npgsql") || 
+                         _context.Database.ProviderName?.Contains("Npgsql") == true;
+
+        if (isPostgres)
+        {
+            cmd.CommandText = @"
+                SELECT COUNT(*) 
+                FROM information_schema.columns 
+                WHERE table_name = @table AND column_name = @column";
+        }
+        else
+        {
+            cmd.CommandText = @"
+                SELECT COUNT(*) 
+                FROM information_schema.COLUMNS 
+                WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = @table AND COLUMN_NAME = @column";
+        }
+
+        var pTable = cmd.CreateParameter();
+        pTable.ParameterName = "@table";
+        pTable.Value = tableName;
+        cmd.Parameters.Add(pTable);
+
+        var pCol = cmd.CreateParameter();
+        pCol.ParameterName = "@column";
+        pCol.Value = columnName;
+        cmd.Parameters.Add(pCol);
+
+        var res = await cmd.ExecuteScalarAsync();
+        var cnt = Convert.ToInt64(res ?? 0);
+        return cnt > 0;
     }
+    catch (Exception ex)
+    {
+        _logger.LogWarning(ex, "Error checking if column {Column} exists in table {Table}", columnName, tableName);
+        return true; // Предполагаем что колонка есть
+    }
+}
 
     #endregion
 

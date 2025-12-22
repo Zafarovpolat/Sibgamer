@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using System.Text.Json.Serialization;
 using backend.Utils;
 
 namespace backend.Models;
@@ -40,6 +41,8 @@ public class CustomPageMedia
 {
     public int Id { get; set; }
     public int CustomPageId { get; set; }
+    
+    [JsonIgnore]  // <-- ДОБАВИТЬ ЭТУ СТРОКУ
     public CustomPage CustomPage { get; set; } = null!;
 
     [Required]
