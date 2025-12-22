@@ -9,6 +9,9 @@ public class ServerMonitoringService : BackgroundService
 {
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<ServerMonitoringService> _logger;
+    private const int STARTUP_DELAY_SECONDS = 60;
+    private const int CHECK_INTERVAL_MINUTES = 5;
+    private const int ERROR_RETRY_DELAY_SECONDS = 60;
 
     public ServerMonitoringService(
         IServiceProvider serviceProvider,
@@ -20,49 +23,67 @@ public class ServerMonitoringService : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        _logger.LogInformation("Server Monitoring Service started");
+        _logger.LogInformation("ServerMonitoringService: ожидание {Delay} секунд перед стартом...", STARTUP_DELAY_SECONDS);
+
+        try
+        {
+            await Task.Delay(TimeSpan.FromSeconds(STARTUP_DELAY_SECONDS), stoppingToken);
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+
+        _logger.LogInformation("ServerMonitoringService: запуск основного цикла");
 
         while (!stoppingToken.IsCancellationRequested)
         {
             try
             {
-                await UpdateServersStatusAsync();
-                await Task.Delay(TimeSpan.FromMinutes(5), stoppingToken);
+                await UpdateServersStatusAsync(stoppingToken);
+                await Task.Delay(TimeSpan.FromMinutes(CHECK_INTERVAL_MINUTES), stoppingToken);
             }
-            catch (TaskCanceledException)
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
-                _logger.LogInformation("Server Monitoring Service is stopping");
+                _logger.LogInformation("ServerMonitoringService: остановка по запросу");
                 break;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error in Server Monitoring Service");
+                _logger.LogError(ex, "Error in ServerMonitoringService");
                 
                 try
                 {
-                    await Task.Delay(TimeSpan.FromMinutes(1), stoppingToken);
+                    await Task.Delay(TimeSpan.FromSeconds(ERROR_RETRY_DELAY_SECONDS), stoppingToken);
                 }
-                catch (TaskCanceledException)
+                catch (OperationCanceledException)
                 {
-                    _logger.LogInformation("Server Monitoring Service is stopping");
                     break;
                 }
             }
         }
         
-        _logger.LogInformation("Server Monitoring Service stopped");
+        _logger.LogInformation("ServerMonitoringService: остановлен");
     }
 
-    private async Task UpdateServersStatusAsync()
+    private async Task UpdateServersStatusAsync(CancellationToken stoppingToken)
     {
         using var scope = _serviceProvider.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         var queryService = scope.ServiceProvider.GetRequiredService<IServerQueryService>();
 
-        var servers = await context.Servers.ToListAsync();
+        var servers = await context.Servers.ToListAsync(stoppingToken);
+
+        if (!servers.Any())
+        {
+            _logger.LogDebug("Нет серверов для мониторинга");
+            return;
+        }
 
         foreach (var server in servers)
         {
+            if (stoppingToken.IsCancellationRequested) break;
+
             try
             {
                 var result = await queryService.QueryServerAsync(server.IpAddress, server.Port);
@@ -76,7 +97,7 @@ public class ServerMonitoringService : BackgroundService
                     server.IsOnline = result.IsOnline;
                     server.LastChecked = DateTimeHelper.GetServerLocalTime();
 
-                    _logger.LogInformation(
+                    _logger.LogDebug(
                         "Updated server {ServerName}: {Players}/{MaxPlayers} on {Map} - {Status}",
                         server.Name, server.CurrentPlayers, server.MaxPlayers, server.MapName,
                         server.IsOnline ? "Online" : "Offline");
@@ -84,12 +105,13 @@ public class ServerMonitoringService : BackgroundService
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error querying server {IpAddress}:{Port}", 
+                _logger.LogWarning(ex, "Error querying server {IpAddress}:{Port}", 
                     server.IpAddress, server.Port);
                 server.IsOnline = false;
+                server.LastChecked = DateTimeHelper.GetServerLocalTime();
             }
         }
 
-        await context.SaveChangesAsync();
+        await context.SaveChangesAsync(stoppingToken);
     }
 }

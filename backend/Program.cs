@@ -21,28 +21,26 @@ builder.Services.AddMemoryCache();
 
 builder.Services.Configure<FormOptions>(options =>
 {
-    options.MultipartBodyLengthLimit = 100 * 1024 * 1024; // 100 MB
+    options.MultipartBodyLengthLimit = 100 * 1024 * 1024;
 });
 
 // ============================================
-// Database Configuration (PostgreSQL/MySQL)
+// Database Configuration
 // ============================================
 var connectionString = Environment.GetEnvironmentVariable("DATABASE_URL")
     ?? builder.Configuration.GetConnectionString("DefaultConnection");
 
 if (string.IsNullOrEmpty(connectionString))
 {
-    throw new InvalidOperationException("Database connection string not configured. Set DATABASE_URL environment variable or DefaultConnection in appsettings.json");
+    throw new InvalidOperationException("Database connection string not configured.");
 }
 
-// Определяем тип базы данных
 var usePostgres = connectionString.StartsWith("postgres://") 
     || connectionString.StartsWith("postgresql://")
     || Environment.GetEnvironmentVariable("USE_POSTGRES") == "true";
 
 if (usePostgres)
 {
-    // Конвертируем Supabase/Heroku URL в Npgsql формат
     if (connectionString.StartsWith("postgres://") || connectionString.StartsWith("postgresql://"))
     {
         connectionString = ConvertPostgresUrl(connectionString);
@@ -52,29 +50,27 @@ if (usePostgres)
     {
         options.UseNpgsql(connectionString, npgsqlOptions =>
         {
-            npgsqlOptions.CommandTimeout(60); // Увеличиваем таймаут до 60 секунд
+            npgsqlOptions.CommandTimeout(120);
             npgsqlOptions.EnableRetryOnFailure(
-                maxRetryCount: 5,
-                maxRetryDelay: TimeSpan.FromSeconds(10),
+                maxRetryCount: 10,
+                maxRetryDelay: TimeSpan.FromSeconds(30),
                 errorCodesToAdd: null
             );
         });
-        options.EnableServiceProviderCaching(true);
     });
     
-    Console.WriteLine("Using PostgreSQL database with retry logic");
+    Console.WriteLine("Using PostgreSQL database with enhanced retry logic");
 }
 else
 {
-    // MySQL (оригинальная конфигурация)
     builder.Services.AddDbContext<ApplicationDbContext>(options =>
         options.UseMySql(connectionString, new MySqlServerVersion(new Version(8, 0, 21)),
             mysqlOptions =>
             {
-                mysqlOptions.CommandTimeout(60);
+                mysqlOptions.CommandTimeout(120);
                 mysqlOptions.EnableRetryOnFailure(
-                    maxRetryCount: 5,
-                    maxRetryDelay: TimeSpan.FromSeconds(10),
+                    maxRetryCount: 10,
+                    maxRetryDelay: TimeSpan.FromSeconds(30),
                     errorNumbersToAdd: null
                 );
             }));
@@ -100,15 +96,16 @@ builder.Services.AddScoped<ITelegramService, TelegramService>();
 builder.Services.AddHttpClient();
 
 // ============================================
-// Background Services (с отложенным стартом)
+// Background Services - ОТКЛЮЧЕНЫ для диагностики
 // ============================================
-builder.Services.AddHostedService<ServerMonitoringService>();
-builder.Services.AddHostedService<PrivilegeExpirationService>();
-builder.Services.AddHostedService<PendingPaymentCancellationService>();
-builder.Services.AddHostedService<AdminSyncBackgroundService>();
-builder.Services.AddHostedService<VipSyncBackgroundService>();
-builder.Services.AddHostedService<TelegramBotBackgroundService>();
-builder.Services.AddHostedService<EventNotificationBackgroundService>();
+// Раскомментируйте после того как основной сайт заработает
+// builder.Services.AddHostedService<ServerMonitoringService>();
+// builder.Services.AddHostedService<PrivilegeExpirationService>();
+// builder.Services.AddHostedService<PendingPaymentCancellationService>();
+// builder.Services.AddHostedService<AdminSyncBackgroundService>();
+// builder.Services.AddHostedService<VipSyncBackgroundService>();
+// builder.Services.AddHostedService<TelegramBotBackgroundService>();
+// builder.Services.AddHostedService<EventNotificationBackgroundService>();
 
 // ============================================
 // JWT Authentication
@@ -124,7 +121,7 @@ var jwtAudience = Environment.GetEnvironmentVariable("JWT_AUDIENCE")
 
 if (string.IsNullOrEmpty(jwtKey) || jwtKey.Length < 32)
 {
-    throw new InvalidOperationException("JWT_KEY must be at least 32 characters. Set JWT_KEY environment variable or Jwt:Key in appsettings.json");
+    throw new InvalidOperationException("JWT_KEY must be at least 32 characters.");
 }
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -156,7 +153,6 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
                     if (!cache.TryGetValue(cacheKey, out User? user))
                     {
                         user = await dbContext.Users.FindAsync(userId);
-
                         var cacheOptions = new MemoryCacheEntryOptions()
                             .SetAbsoluteExpiration(TimeSpan.FromMinutes(5));
                         cache.Set(cacheKey, user, cacheOptions);
@@ -182,35 +178,33 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 builder.Services.AddAuthorization();
 
 // ============================================
-// CORS
+// CORS - Расширенная настройка
 // ============================================
 var frontendUrl = Environment.GetEnvironmentVariable("FRONTEND_URL")
     ?? builder.Configuration["FrontendUrl"]
     ?? "http://localhost:5173";
 
-var allowedOrigins = new List<string> { frontendUrl };
-
-// Добавляем www версию если https
-if (frontendUrl.StartsWith("https://") && !frontendUrl.Contains("www."))
-{
-    allowedOrigins.Add(frontendUrl.Replace("https://", "https://www."));
-}
-
-// Добавляем localhost для разработки
-if (!frontendUrl.Contains("localhost"))
-{
-    allowedOrigins.Add("http://localhost:5173");
-    allowedOrigins.Add("http://localhost:3000");
-}
-
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowFrontend", policy =>
     {
-        policy.WithOrigins(allowedOrigins.ToArray())
+        policy.WithOrigins(
+                frontendUrl,
+                frontendUrl.Replace("https://", "https://www."),
+                "http://localhost:5173",
+                "http://localhost:3000"
+            )
             .AllowAnyHeader()
             .AllowAnyMethod()
             .AllowCredentials();
+    });
+    
+    // Добавляем политику для всех origins (для отладки)
+    options.AddPolicy("AllowAll", policy =>
+    {
+        policy.AllowAnyOrigin()
+            .AllowAnyHeader()
+            .AllowAnyMethod();
     });
 });
 
@@ -241,15 +235,16 @@ forwardedHeadersOptions.KnownNetworks.Clear();
 forwardedHeadersOptions.KnownProxies.Clear();
 app.UseForwardedHeaders(forwardedHeadersOptions);
 
-// Swagger в development и production (для тестирования)
 app.UseSwagger();
 app.UseSwaggerUI();
 
-app.UseCors("AllowFrontend");
+// Используем AllowAll для отладки - потом вернуть на AllowFrontend
+app.UseCors("AllowAll");
 
 app.UseStaticFiles();
 
-app.UseMiddleware<backend.Middleware.IpBlockMiddleware>();
+// ОТКЛЮЧАЕМ IP блокировку для отладки
+// app.UseMiddleware<backend.Middleware.IpBlockMiddleware>();
 
 app.UseAuthentication();
 app.UseAuthorization();
@@ -257,36 +252,60 @@ app.UseAuthorization();
 app.MapControllers();
 
 // ============================================
-// Database Connection Check (с retry)
+// Health Check Endpoint
+// ============================================
+app.MapGet("/health", async (ApplicationDbContext context) =>
+{
+    try
+    {
+        var canConnect = await context.Database.CanConnectAsync();
+        return Results.Ok(new { 
+            status = canConnect ? "healthy" : "unhealthy",
+            database = canConnect ? "connected" : "disconnected",
+            timestamp = DateTime.UtcNow
+        });
+    }
+    catch (Exception ex)
+    {
+        return Results.Ok(new { 
+            status = "unhealthy",
+            database = "error",
+            error = ex.Message,
+            timestamp = DateTime.UtcNow
+        });
+    }
+});
+
+// ============================================
+// Database Warm-up
 // ============================================
 using (var scope = app.Services.CreateScope())
 {
     var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
     var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
 
+    logger.LogInformation("Прогрев базы данных...");
+    
     for (int attempt = 1; attempt <= 5; attempt++)
     {
         try
         {
-            logger.LogInformation("Проверка подключения к базе данных (попытка {Attempt}/5)...", attempt);
-
+            // Простой запрос для "пробуждения" БД
             var canConnect = await context.Database.CanConnectAsync();
             if (canConnect)
             {
-                logger.LogInformation("Подключение к базе данных успешно.");
+                // Делаем простой запрос чтобы соединение было "горячим"
+                await context.Database.ExecuteSqlRawAsync("SELECT 1");
+                logger.LogInformation("База данных готова (попытка {Attempt})", attempt);
                 break;
-            }
-            else
-            {
-                logger.LogWarning("Не удалось подключиться к базе данных.");
             }
         }
         catch (Exception ex)
         {
-            logger.LogWarning(ex, "Ошибка при подключении к базе данных (попытка {Attempt}/5).", attempt);
+            logger.LogWarning("Попытка {Attempt}/5 подключения к БД не удалась: {Error}", attempt, ex.Message);
             if (attempt < 5)
             {
-                await Task.Delay(TimeSpan.FromSeconds(5 * attempt)); // Экспоненциальная задержка
+                await Task.Delay(TimeSpan.FromSeconds(10 * attempt));
             }
         }
     }
@@ -297,10 +316,6 @@ app.Run();
 // ============================================
 // Helper Functions
 // ============================================
-
-/// <summary>
-/// Конвертация PostgreSQL URL (Supabase/Heroku формат) в Npgsql connection string
-/// </summary>
 static string ConvertPostgresUrl(string url)
 {
     try
@@ -313,18 +328,26 @@ static string ConvertPostgresUrl(string url)
         var port = uri.Port > 0 ? uri.Port : 5432;
         var database = uri.AbsolutePath.TrimStart('/');
 
-        // Supabase требует SSL
-        var sslMode = "Require";
-        
-        // Проверяем query параметры для дополнительных настроек
         var query = System.Web.HttpUtility.ParseQueryString(uri.Query);
-        if (query["sslmode"] != null)
-        {
-            sslMode = query["sslmode"];
-        }
+        var sslMode = query["sslmode"] ?? "Require";
 
-        // Добавляем параметры для стабильности соединения
-        return $"Host={host};Port={port};Database={database};Username={username};Password={password};SSL Mode={sslMode};Trust Server Certificate=true;Pooling=true;Minimum Pool Size=1;Maximum Pool Size=10;Connection Idle Lifetime=300;Connection Pruning Interval=10;Keepalive=30;Timeout=60";
+        // Оптимизированные параметры для Supabase
+        return $"Host={host};" +
+               $"Port={port};" +
+               $"Database={database};" +
+               $"Username={username};" +
+               $"Password={password};" +
+               $"SSL Mode={sslMode};" +
+               $"Trust Server Certificate=true;" +
+               $"Pooling=true;" +
+               $"Minimum Pool Size=0;" +
+               $"Maximum Pool Size=5;" +        // Уменьшаем пул
+               $"Connection Idle Lifetime=60;" + // Быстрее закрываем неиспользуемые
+               $"Connection Pruning Interval=10;" +
+               $"Keepalive=15;" +               // Чаще keepalive
+               $"Timeout=120;" +                // Увеличенный таймаут
+               $"Command Timeout=120;" +
+               $"Internal Command Timeout=120";
     }
     catch (Exception ex)
     {

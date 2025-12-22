@@ -8,7 +8,9 @@ public class PendingPaymentCancellationService : BackgroundService
 {
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<PendingPaymentCancellationService> _logger;
-    private readonly TimeSpan _checkInterval = TimeSpan.FromMinutes(1);
+    private const int STARTUP_DELAY_SECONDS = 75;
+    private const int CHECK_INTERVAL_MINUTES = 2;
+    private const int ERROR_RETRY_DELAY_SECONDS = 60;
 
     public PendingPaymentCancellationService(
         IServiceProvider serviceProvider,
@@ -20,26 +22,50 @@ public class PendingPaymentCancellationService : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        _logger.LogInformation("Запущен сервис отмены истёкших платежей");
+        _logger.LogInformation("PendingPaymentCancellationService: ожидание {Delay} секунд перед стартом...", STARTUP_DELAY_SECONDS);
 
-        await Task.Delay(TimeSpan.FromSeconds(30), stoppingToken);
+        try
+        {
+            await Task.Delay(TimeSpan.FromSeconds(STARTUP_DELAY_SECONDS), stoppingToken);
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+
+        _logger.LogInformation("PendingPaymentCancellationService: запуск основного цикла");
 
         while (!stoppingToken.IsCancellationRequested)
         {
             try
             {
                 await CancelExpiredPendingPayments(stoppingToken);
+                await Task.Delay(TimeSpan.FromMinutes(CHECK_INTERVAL_MINUTES), stoppingToken);
+            }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                _logger.LogInformation("PendingPaymentCancellationService: остановка по запросу");
+                break;
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Ошибка при отмене истёкших платежей");
+                
+                try
+                {
+                    await Task.Delay(TimeSpan.FromSeconds(ERROR_RETRY_DELAY_SECONDS), stoppingToken);
+                }
+                catch (OperationCanceledException)
+                {
+                    break;
+                }
             }
-
-            await Task.Delay(_checkInterval, stoppingToken);
         }
+
+        _logger.LogInformation("PendingPaymentCancellationService: остановлен");
     }
 
-    private async Task CancelExpiredPendingPayments(CancellationToken cancellationToken)
+    private async Task CancelExpiredPendingPayments(CancellationToken stoppingToken)
     {
         using var scope = _serviceProvider.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
@@ -51,11 +77,11 @@ public class PendingPaymentCancellationService : BackgroundService
                 t.Status == "pending" && 
                 t.PendingExpiresAt != null && 
                 t.PendingExpiresAt <= now)
-            .ToListAsync(cancellationToken);
+            .ToListAsync(stoppingToken);
 
         if (expiredTransactions.Any())
         {
-            _logger.LogInformation($"Найдено {expiredTransactions.Count} истёкших платежей для отмены");
+            _logger.LogInformation("Найдено {Count} истёкших платежей для отмены", expiredTransactions.Count);
 
             foreach (var transaction in expiredTransactions)
             {
@@ -63,12 +89,11 @@ public class PendingPaymentCancellationService : BackgroundService
                 transaction.CancelledAt = now;
                 
                 _logger.LogInformation(
-                    $"Платёж {transaction.TransactionId} отменён автоматически. " +
-                    $"Тип: {transaction.Type}, Сумма: {transaction.Amount}, " +
-                    $"Создан: {transaction.CreatedAt}, Истёк: {transaction.PendingExpiresAt}");
+                    "Платёж {TransactionId} отменён. Тип: {Type}, Сумма: {Amount}",
+                    transaction.TransactionId, transaction.Type, transaction.Amount);
             }
 
-            await context.SaveChangesAsync(cancellationToken);
+            await context.SaveChangesAsync(stoppingToken);
         }
     }
 }
