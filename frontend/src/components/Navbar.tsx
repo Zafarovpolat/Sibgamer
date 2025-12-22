@@ -16,7 +16,7 @@ const Navbar = () => {
   const { user, isAuthenticated, logout } = useAuthStore();
   const { data: settings } = useSiteSettings();
   const siteName = settings?.site_name || 'SIBGamer';
-  
+
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showInfoDropdown, setShowInfoDropdown] = useState(false);
   const [showParticipationDropdown, setShowParticipationDropdown] = useState(false);
@@ -33,7 +33,8 @@ const Navbar = () => {
     queryKey: ['notifications', 'unread-count'],
     queryFn: getUnreadCount,
     enabled: isAuthenticated,
-    refetchInterval: 30000, 
+    refetchInterval: 30000,
+    staleTime: 2000, // Предотвращаем мгновенный запрос после входа (race condition с сохранением токена)
   });
 
   useEffect(() => {
@@ -85,7 +86,7 @@ const Navbar = () => {
     setTimeout(() => {
       setShowMobileMenu(false);
       setIsMenuAnimating(false);
-    }, 300); 
+    }, 300);
   };
 
   const toggleMobileMenu = () => {
@@ -114,26 +115,26 @@ const Navbar = () => {
               {siteName}
             </Link>
             <div className="hidden lg:flex items-center space-x-6 absolute left-1/2 transform -translate-x-1/2">
-              <Link 
-                to="/" 
+              <Link
+                to="/"
                 className="text-gray-300 hover:text-highlight transition-colors duration-300 flex items-center space-x-2 px-4 py-2 rounded-lg hover:bg-highlight/10"
               >
                 <span>Главная</span>
               </Link>
-              <Link 
-                to="/news" 
+              <Link
+                to="/news"
                 className="text-gray-300 hover:text-highlight transition-colors duration-300 flex items-center space-x-2 px-4 py-2 rounded-lg hover:bg-highlight/10"
               >
                 <span>Новости</span>
               </Link>
-              <Link 
-                to="/events" 
+              <Link
+                to="/events"
                 className="text-gray-300 hover:text-highlight transition-colors duration-300 flex items-center space-x-2 px-4 py-2 rounded-lg hover:bg-highlight/10"
               >
                 <span>События</span>
               </Link>
-              <Link 
-                to="/donate" 
+              <Link
+                to="/donate"
                 className="text-gray-300 hover:text-highlight transition-colors duration-300 flex items-center space-x-2 px-4 py-2 rounded-lg hover:bg-highlight/10"
               >
                 <span>Донат</span>
@@ -194,7 +195,7 @@ const Navbar = () => {
                 )}
               </div>
 
-              
+
             </div>
 
             <div className="hidden lg:flex items-center space-x-6">
@@ -210,31 +211,31 @@ const Navbar = () => {
                       <span>{user.username}</span>
                     </button>
                     {showUserMenu && (
-                    <div className="absolute right-0 mt-2 w-48 bg-secondary rounded-xl py-2 animate-slide-in z-50 overflow-hidden shadow-lg">
-                      <Link
-                        to="/profile"
-                        className="block px-4 py-2 text-gray-300 hover:text-highlight hover:bg-secondary/70 transition-colors duration-200 lg:px-3 lg:py-2 lg:my-0"
-                        onClick={() => setShowUserMenu(false)}
-                      >
-                        Личный кабинет
-                      </Link>
-                      {user.isAdmin && (
+                      <div className="absolute right-0 mt-2 w-48 bg-secondary rounded-xl py-2 animate-slide-in z-50 overflow-hidden shadow-lg">
                         <Link
-                          to="/admin"
+                          to="/profile"
                           className="block px-4 py-2 text-gray-300 hover:text-highlight hover:bg-secondary/70 transition-colors duration-200 lg:px-3 lg:py-2 lg:my-0"
                           onClick={() => setShowUserMenu(false)}
                         >
-                          Админ-панель
+                          Личный кабинет
                         </Link>
-                      )}
-                      <button
-                        onClick={handleLogout}
-                        className="w-full text-left px-4 py-2 text-gray-300 hover:text-highlight hover:bg-secondary/70 transition-colors duration-200 flex items-center space-x-2 lg:px-3 lg:py-2 lg:my-0"
-                      >
-                        <FontAwesomeIcon icon={faSignOutAlt} />
-                        <span>Выход</span>
-                      </button>
-                    </div>
+                        {user.isAdmin && (
+                          <Link
+                            to="/admin"
+                            className="block px-4 py-2 text-gray-300 hover:text-highlight hover:bg-secondary/70 transition-colors duration-200 lg:px-3 lg:py-2 lg:my-0"
+                            onClick={() => setShowUserMenu(false)}
+                          >
+                            Админ-панель
+                          </Link>
+                        )}
+                        <button
+                          onClick={handleLogout}
+                          className="w-full text-left px-4 py-2 text-gray-300 hover:text-highlight hover:bg-secondary/70 transition-colors duration-200 flex items-center space-x-2 lg:px-3 lg:py-2 lg:my-0"
+                        >
+                          <FontAwesomeIcon icon={faSignOutAlt} />
+                          <span>Выход</span>
+                        </button>
+                      </div>
                     )}
                   </div>
                 </>
@@ -276,7 +277,7 @@ const Navbar = () => {
                   <span className="text-gray-300 font-medium">{user.username}</span>
                 </div>
               )}
-              
+
               <Link
                 to="/"
                 className="block py-2 text-gray-300 hover:text-highlight transition-colors duration-300"

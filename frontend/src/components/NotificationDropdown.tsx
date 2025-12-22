@@ -18,14 +18,15 @@ const NotificationDropdown = () => {
     queryKey: ['notifications', 'unread-count'],
     queryFn: getUnreadCount,
     enabled: isAuthenticated,
-    refetchInterval: 30000, 
+    refetchInterval: 30000,
+    staleTime: 2000, // Предотвращаем мгновенный запрос после входа (race condition с сохранением токена)
   });
 
   const queryClient = useQueryClient();
 
   const notificationsQuery = useQuery({
     queryKey: ['notifications', 'recent'],
-    queryFn: () => getNotifications(1, 3, true), 
+    queryFn: () => getNotifications(1, 3, true),
     enabled: isAuthenticated && showDropdown,
   });
 
@@ -168,9 +169,8 @@ const NotificationDropdown = () => {
               unreadList.map((notification) => (
                 <div
                   key={notification.id}
-                  className={`flex items-start gap-3 px-4 py-3 hover:bg-secondary/80 transition-colors ${
-                    !notification.isRead ? 'bg-secondary/85' : 'bg-secondary/90'
-                  }`}
+                  className={`flex items-start gap-3 px-4 py-3 hover:bg-secondary/80 transition-colors ${!notification.isRead ? 'bg-secondary/85' : 'bg-secondary/90'
+                    }`}
                 >
                   {!notification.isRead ? (
                     <div className="w-1.5 h-10 rounded-full bg-highlight mt-1 shrink-0" />

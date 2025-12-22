@@ -31,14 +31,26 @@ public class JwtService : IJwtService
             new Claim(ClaimTypes.Role, user.IsAdmin ? "Admin" : "User")
         };
 
-        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(
-            _configuration["Jwt:Key"] ?? throw new InvalidOperationException("JWT Key not configured")));
+        // Используем тот же порядок получения ключей, что и в Program.cs
+        var jwtKey = Environment.GetEnvironmentVariable("JWT_KEY")
+            ?? _configuration["Jwt:Key"]
+            ?? throw new InvalidOperationException("JWT Key not configured");
+        
+        var jwtIssuer = Environment.GetEnvironmentVariable("JWT_ISSUER")
+            ?? _configuration["Jwt:Issuer"]
+            ?? "SibGamer";
+        
+        var jwtAudience = Environment.GetEnvironmentVariable("JWT_AUDIENCE")
+            ?? _configuration["Jwt:Audience"]
+            ?? "SibGamerUsers";
+
+        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey));
 
         var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
         var token = new JwtSecurityToken(
-            issuer: _configuration["Jwt:Issuer"],
-            audience: _configuration["Jwt:Audience"],
+            issuer: jwtIssuer,
+            audience: jwtAudience,
             claims: claims,
             expires: DateTimeHelper.GetServerLocalTime().AddDays(7),
             signingCredentials: credentials
@@ -47,3 +59,4 @@ public class JwtService : IJwtService
         return new JwtSecurityTokenHandler().WriteToken(token);
     }
 }
+
