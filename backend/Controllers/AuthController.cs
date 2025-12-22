@@ -15,13 +15,16 @@ public class AuthController : ControllerBase
 {
     private readonly ApplicationDbContext _context;
     private readonly IJwtService _jwtService;
-    private readonly IEmailService _emailService;
+    private readonly IServiceProvider _serviceProvider;
 
-    public AuthController(ApplicationDbContext context, IJwtService jwtService, IEmailService emailService)
+    public AuthController(
+        ApplicationDbContext context, 
+        IJwtService jwtService, 
+        IServiceProvider serviceProvider)
     {
         _context = context;
         _jwtService = jwtService;
-        _emailService = emailService;
+        _serviceProvider = serviceProvider;
     }
 
     [HttpPost("register")]
@@ -51,18 +54,24 @@ public class AuthController : ControllerBase
         _context.Users.Add(user);
         await _context.SaveChangesAsync();
 
+        var token = _jwtService.GenerateToken(user);
+
+        // Отправка email в фоне с НОВЫМ scope
+        var userEmail = user.Email;
+        var userName = user.Username;
         _ = Task.Run(async () =>
         {
             try
             {
-                await _emailService.SendWelcomeEmailAsync(user.Email, user.Username);
+                using var scope = _serviceProvider.CreateScope();
+                var emailService = scope.ServiceProvider.GetRequiredService<IEmailService>();
+                await emailService.SendWelcomeEmailAsync(userEmail, userName);
             }
-            catch
+            catch (Exception ex)
             {
+                Console.WriteLine($"Failed to send welcome email: {ex.Message}");
             }
         });
-
-        var token = _jwtService.GenerateToken(user);
 
         return Ok(new AuthResponseDto
         {
@@ -180,14 +189,20 @@ public class AuthController : ControllerBase
         _context.PasswordResetTokens.Add(resetToken);
         await _context.SaveChangesAsync();
 
+        // Отправка email в фоне с НОВЫМ scope
+        var userEmail = user.Email;
+        var userName = user.Username;
         _ = Task.Run(async () =>
         {
             try
             {
-                await _emailService.SendPasswordResetEmailAsync(user.Email, user.Username, token);
+                using var scope = _serviceProvider.CreateScope();
+                var emailService = scope.ServiceProvider.GetRequiredService<IEmailService>();
+                await emailService.SendPasswordResetEmailAsync(userEmail, userName, token);
             }
-            catch
+            catch (Exception ex)
             {
+                Console.WriteLine($"Failed to send password reset email: {ex.Message}");
             }
         });
 

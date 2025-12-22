@@ -13,7 +13,6 @@ const api = axios.create({
 
 api.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
-    // Получаем токен напрямую из store (более надёжно)
     const { token } = useAuthStore.getState();
 
     if (token) {
@@ -28,29 +27,35 @@ api.interceptors.request.use(
   }
 );
 
-// Флаг чтобы не вызывать logout много раз
+// Защита от множественных logout
 let isLoggingOut = false;
+let lastLogoutTime = 0;
 
 api.interceptors.response.use(
   (response: AxiosResponse) => response,
   (error: AxiosError<unknown>) => {
     const isAuthRequest = error.config?.url?.includes('/auth/');
+    const isNotificationRequest = error.config?.url?.includes('/notifications/');
 
-    if (error.response?.status === 401 && !isAuthRequest && !isLoggingOut) {
-      const { token, logout } = useAuthStore.getState();
+    // Игнорируем 401 для запросов авторизации и уведомлений
+    if (error.response?.status === 401 && !isAuthRequest) {
+      const now = Date.now();
+      const { token, isAuthenticated, logout } = useAuthStore.getState();
 
-      // Только если был токен - значит сессия истекла
-      if (token) {
+      // Только если:
+      // 1. Был токен И пользователь считался авторизованным
+      // 2. Прошло больше 2 секунд с последнего logout
+      // 3. Это не запрос уведомлений (они могут быть отправлены до сохранения токена)
+      if (token && isAuthenticated && !isLoggingOut && (now - lastLogoutTime > 2000) && !isNotificationRequest) {
         isLoggingOut = true;
+        lastLogoutTime = now;
         logout();
 
-        if (window.location.pathname !== '/') {
-          toast.error('Сессия истекла. Пожалуйста, войдите снова.');
-        }
+        toast.error('Сессия истекла. Пожалуйста, войдите снова.');
 
         setTimeout(() => {
           isLoggingOut = false;
-        }, 1000);
+        }, 2000);
       }
     }
 

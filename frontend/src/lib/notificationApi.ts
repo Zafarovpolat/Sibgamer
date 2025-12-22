@@ -1,4 +1,5 @@
 import api from './axios';
+import { useAuthStore } from '../store/authStore';
 
 export interface Notification {
   id: number;
@@ -25,12 +26,22 @@ export interface NotificationsResponse {
 }
 
 export const getNotifications = async (page: number = 1, pageSize: number = 20, onlyUnread: boolean = false): Promise<NotificationsResponse> => {
+  const { isAuthenticated } = useAuthStore.getState();
+  if (!isAuthenticated) {
+    return { notifications: [], pagination: { currentPage: 1, pageSize, totalCount: 0, totalPages: 0 } };
+  }
+
   const q = `/notifications?page=${page}&pageSize=${pageSize}${onlyUnread ? '&onlyUnread=true' : ''}`;
   const response = await api.get(q);
   return response.data;
 };
 
 export const getUnreadCount = async (): Promise<UnreadCount> => {
+  const { isAuthenticated } = useAuthStore.getState();
+  if (!isAuthenticated) {
+    return { count: 0 };
+  }
+
   const response = await api.get('/notifications/unread-count');
   return response.data;
 };
