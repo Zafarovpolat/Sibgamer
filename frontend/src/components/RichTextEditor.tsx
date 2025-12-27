@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import type { Editor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
@@ -22,9 +22,20 @@ import {
   faBold, faItalic, faUnderline, faStrikethrough, faCode,
   faListUl, faListOl, faQuoteLeft, faLink, faImage,
   faTable, faAlignLeft, faAlignCenter, faAlignRight, faAlignJustify,
-  faUndo, faRedo, faHighlighter, faTableCells
+  faUndo, faRedo, faHighlighter, faTableCells, faChevronDown,
+  faInfoCircle, faEyeSlash, faPalette
 } from '@fortawesome/free-solid-svg-icons';
 import { faYoutube } from '@fortawesome/free-brands-svg-icons';
+
+// Импорт кастомных расширений
+import Accordion from './editor/extensions/Accordion';
+import Callout from './editor/extensions/Callout';
+import Spoiler from './editor/extensions/Spoiler';
+
+// Импорт модальных окон
+import { LinkModal, ImageModal, YoutubeModal, ColorModal } from './editor/EditorModal';
+
+import { uploadMedia } from '../lib/media';
 import './RichTextEditor.css';
 
 const lowlight = createLowlight(common);
@@ -35,54 +46,31 @@ interface RichTextEditorProps {
   placeholder?: string;
 }
 
-const MenuBar = ({ editor }: { editor: Editor | null }) => {
+interface ModalState {
+  link: boolean;
+  image: boolean;
+  youtube: boolean;
+  color: boolean;
+}
+
+const MenuBar = ({
+  editor,
+  onOpenModal
+}: {
+  editor: Editor | null;
+  onOpenModal: (modal: keyof ModalState) => void;
+}) => {
   if (!editor) {
     return null;
   }
-
-  const addYoutubeVideo = () => {
-    const url = prompt('Введите YouTube URL:');
-    if (url) {
-      editor.commands.setYoutubeVideo({ src: url, width: 640, height: 480 });
-    }
-  };
-
-  const addImage = () => {
-    const url = prompt('Введите URL изображения:');
-    if (url) {
-      editor.chain().focus().setImage({ src: url }).run();
-    }
-  };
-
-  const setLink = () => {
-    const previousUrl = editor.getAttributes('link').href;
-    const url = prompt('Введите URL:', previousUrl);
-
-    if (url === null) {
-      return;
-    }
-
-    if (url === '') {
-      editor.chain().focus().extendMarkRange('link').unsetLink().run();
-      return;
-    }
-
-    editor.chain().focus().extendMarkRange('link').setLink({ href: url }).run();
-  };
 
   const addTable = () => {
     editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run();
   };
 
-  const setColor = () => {
-    const color = prompt('Введите цвет (например, #ff0000):');
-    if (color) {
-      editor.chain().focus().setColor(color).run();
-    }
-  };
-
   return (
     <div className="editor-menu-bar">
+      {/* Undo/Redo */}
       <div className="menu-group">
         <button
           type="button"
@@ -106,6 +94,7 @@ const MenuBar = ({ editor }: { editor: Editor | null }) => {
 
       <div className="menu-divider" />
 
+      {/* Заголовки */}
       <div className="menu-group">
         <select
           onChange={(e) => {
@@ -121,12 +110,12 @@ const MenuBar = ({ editor }: { editor: Editor | null }) => {
           className="menu-select"
           value={
             editor.isActive('heading', { level: 1 }) ? 'heading1' :
-            editor.isActive('heading', { level: 2 }) ? 'heading2' :
-            editor.isActive('heading', { level: 3 }) ? 'heading3' :
-            editor.isActive('heading', { level: 4 }) ? 'heading4' :
-            editor.isActive('heading', { level: 5 }) ? 'heading5' :
-            editor.isActive('heading', { level: 6 }) ? 'heading6' :
-            'paragraph'
+              editor.isActive('heading', { level: 2 }) ? 'heading2' :
+                editor.isActive('heading', { level: 3 }) ? 'heading3' :
+                  editor.isActive('heading', { level: 4 }) ? 'heading4' :
+                    editor.isActive('heading', { level: 5 }) ? 'heading5' :
+                      editor.isActive('heading', { level: 6 }) ? 'heading6' :
+                        'paragraph'
           }
         >
           <option value="paragraph">Параграф</option>
@@ -141,6 +130,7 @@ const MenuBar = ({ editor }: { editor: Editor | null }) => {
 
       <div className="menu-divider" />
 
+      {/* Форматирование текста */}
       <div className="menu-group">
         <button
           type="button"
@@ -184,21 +174,22 @@ const MenuBar = ({ editor }: { editor: Editor | null }) => {
         </button>
         <button
           type="button"
-          onClick={setColor}
+          onClick={() => onOpenModal('color')}
           className="menu-button"
           title="Цвет текста"
         >
-          <span style={{ color: editor.getAttributes('textStyle').color || '#fff' }}>A</span>
+          <FontAwesomeIcon icon={faPalette} style={{ color: editor.getAttributes('textStyle').color || '#fff' }} />
         </button>
       </div>
 
       <div className="menu-divider" />
 
+      {/* Выравнивание */}
       <div className="menu-group">
         <button
           type="button"
           onClick={() => editor.chain().focus().setTextAlign('left').run()}
-          className={`menu-button ${editor.isActive({ textAlign: 'left' }) || (!editor.isActive({ textAlign: 'center' }) && !editor.isActive({ textAlign: 'right' }) && !editor.isActive({ textAlign: 'justify' })) ? 'is-active' : ''}`}
+          className={`menu-button ${editor.isActive({ textAlign: 'left' }) ? 'is-active' : ''}`}
           title="По левому краю"
         >
           <FontAwesomeIcon icon={faAlignLeft} />
@@ -231,6 +222,7 @@ const MenuBar = ({ editor }: { editor: Editor | null }) => {
 
       <div className="menu-divider" />
 
+      {/* Списки */}
       <div className="menu-group">
         <button
           type="button"
@@ -252,6 +244,7 @@ const MenuBar = ({ editor }: { editor: Editor | null }) => {
 
       <div className="menu-divider" />
 
+      {/* Блоки */}
       <div className="menu-group">
         <button
           type="button"
@@ -271,7 +264,7 @@ const MenuBar = ({ editor }: { editor: Editor | null }) => {
         </button>
         <button
           type="button"
-          onClick={setLink}
+          onClick={() => onOpenModal('link')}
           className={`menu-button ${editor.isActive('link') ? 'is-active' : ''}`}
           title="Вставить ссылку"
         >
@@ -279,7 +272,7 @@ const MenuBar = ({ editor }: { editor: Editor | null }) => {
         </button>
         <button
           type="button"
-          onClick={addImage}
+          onClick={() => onOpenModal('image')}
           className="menu-button"
           title="Вставить изображение"
         >
@@ -287,7 +280,7 @@ const MenuBar = ({ editor }: { editor: Editor | null }) => {
         </button>
         <button
           type="button"
-          onClick={addYoutubeVideo}
+          onClick={() => onOpenModal('youtube')}
           className="menu-button"
           title="Вставить YouTube видео"
         >
@@ -303,6 +296,37 @@ const MenuBar = ({ editor }: { editor: Editor | null }) => {
         </button>
       </div>
 
+      <div className="menu-divider" />
+
+      {/* Специальные блоки */}
+      <div className="menu-group">
+        <button
+          type="button"
+          onClick={() => editor.chain().focus().setAccordion({ title: 'Раскрыть' }).run()}
+          className={`menu-button ${editor.isActive('accordion') ? 'is-active' : ''}`}
+          title="Раскрывающийся блок (Accordion)"
+        >
+          <FontAwesomeIcon icon={faChevronDown} />
+        </button>
+        <button
+          type="button"
+          onClick={() => editor.chain().focus().setCallout({ type: 'info' }).run()}
+          className={`menu-button ${editor.isActive('callout') ? 'is-active' : ''}`}
+          title="Информационный блок (Callout)"
+        >
+          <FontAwesomeIcon icon={faInfoCircle} />
+        </button>
+        <button
+          type="button"
+          onClick={() => editor.chain().focus().setSpoiler().run()}
+          className={`menu-button ${editor.isActive('spoiler') ? 'is-active' : ''}`}
+          title="Спойлер"
+        >
+          <FontAwesomeIcon icon={faEyeSlash} />
+        </button>
+      </div>
+
+      {/* Управление таблицей */}
       {editor.isActive('table') && (
         <>
           <div className="menu-divider" />
@@ -369,6 +393,7 @@ const MenuBar = ({ editor }: { editor: Editor | null }) => {
 
       <div className="menu-divider" />
 
+      {/* Разделители */}
       <div className="menu-group">
         <button
           type="button"
@@ -392,10 +417,25 @@ const MenuBar = ({ editor }: { editor: Editor | null }) => {
 };
 
 const RichTextEditor = ({ content, onChange, placeholder = 'Начните писать свою статью...' }: RichTextEditorProps) => {
+  const [modals, setModals] = useState<ModalState>({
+    link: false,
+    image: false,
+    youtube: false,
+    color: false,
+  });
+
+  const openModal = useCallback((modal: keyof ModalState) => {
+    setModals(prev => ({ ...prev, [modal]: true }));
+  }, []);
+
+  const closeModal = useCallback((modal: keyof ModalState) => {
+    setModals(prev => ({ ...prev, [modal]: false }));
+  }, []);
+
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
-        codeBlock: false, 
+        codeBlock: false,
       }),
       Underline,
       Link.configure({
@@ -452,6 +492,10 @@ const RichTextEditor = ({ content, onChange, placeholder = 'Начните пи�
       Placeholder.configure({
         placeholder,
       }),
+      // Кастомные расширения
+      Accordion,
+      Callout,
+      Spoiler,
     ],
     content,
     onUpdate: ({ editor }) => {
@@ -461,8 +505,70 @@ const RichTextEditor = ({ content, onChange, placeholder = 'Начните пи�
       attributes: {
         class: 'prose prose-invert max-w-none focus:outline-none min-h-[500px] p-6',
       },
+      handleDrop: (view, event, slice, moved) => {
+        if (!moved && event.dataTransfer?.files?.length) {
+          const file = event.dataTransfer.files[0];
+          if (file.type.startsWith('image/')) {
+            event.preventDefault();
+            handleImageUpload(file);
+            return true;
+          }
+        }
+        return false;
+      },
+      handlePaste: (view, event) => {
+        const items = event.clipboardData?.items;
+        if (items) {
+          for (const item of items) {
+            if (item.type.startsWith('image/')) {
+              event.preventDefault();
+              const file = item.getAsFile();
+              if (file) handleImageUpload(file);
+              return true;
+            }
+          }
+        }
+        return false;
+      },
     },
   });
+
+  const handleImageUpload = async (file: File) => {
+    if (!editor) return;
+
+    try {
+      const url = await uploadMedia(file);
+      editor.chain().focus().setImage({ src: url }).run();
+    } catch (error) {
+      console.error('Failed to upload image:', error);
+      alert('Ошибка загрузки изображения');
+    }
+  };
+
+  const handleLinkSubmit = useCallback((url: string) => {
+    if (!editor) return;
+
+    if (url === '') {
+      editor.chain().focus().extendMarkRange('link').unsetLink().run();
+    } else {
+      editor.chain().focus().extendMarkRange('link').setLink({ href: url }).run();
+    }
+  }, [editor]);
+
+  const handleImageSubmit = useCallback((url: string) => {
+    if (!editor) return;
+    editor.chain().focus().setImage({ src: url }).run();
+  }, [editor]);
+
+  const handleYoutubeSubmit = useCallback((url: string) => {
+    if (!editor) return;
+    editor.commands.setYoutubeVideo({ src: url, width: 640, height: 480 });
+  }, [editor]);
+
+  const handleColorSubmit = useCallback((color: string) => {
+    if (!editor) return;
+    editor.chain().focus().setColor(color).run();
+  }, [editor]);
 
   useEffect(() => {
     if (editor && content !== editor.getHTML()) {
@@ -472,8 +578,36 @@ const RichTextEditor = ({ content, onChange, placeholder = 'Начните пи�
 
   return (
     <div className="rich-text-editor-wrapper">
-      <MenuBar editor={editor} />
+      <MenuBar editor={editor} onOpenModal={openModal} />
       <EditorContent editor={editor} className="editor-content" />
+
+      {/* Модальные окна */}
+      <LinkModal
+        isOpen={modals.link}
+        onClose={() => closeModal('link')}
+        onSubmit={handleLinkSubmit}
+        initialUrl={editor?.getAttributes('link').href || ''}
+      />
+
+      <ImageModal
+        isOpen={modals.image}
+        onClose={() => closeModal('image')}
+        onSubmit={handleImageSubmit}
+        onUpload={uploadMedia}
+      />
+
+      <YoutubeModal
+        isOpen={modals.youtube}
+        onClose={() => closeModal('youtube')}
+        onSubmit={handleYoutubeSubmit}
+      />
+
+      <ColorModal
+        isOpen={modals.color}
+        onClose={() => closeModal('color')}
+        onSubmit={handleColorSubmit}
+        currentColor={editor?.getAttributes('textStyle').color || '#ffffff'}
+      />
     </div>
   );
 };

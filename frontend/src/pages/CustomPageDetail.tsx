@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useParams } from 'react-router-dom';
 import { API_URL } from '../config/api';
 import { resolveMediaUrl } from '../lib/media';
+import ContentRenderer from '../components/ContentRenderer';
 import type { CustomPage } from '../types';
 
 const CustomPageDetail = () => {
@@ -58,12 +59,8 @@ const CustomPageDetail = () => {
           )}
         </div>
 
-        <div>
-          <div
-            className="prose prose-invert max-w-none"
-            dangerouslySetInnerHTML={{ __html: page.content }}
-          />
-        </div>
+        {/* Используем ContentRenderer вместо dangerouslySetInnerHTML */}
+        <ContentRenderer content={page.content} />
 
         {page.media && page.media.length > 0 && (
           <div className="mt-8">
@@ -78,8 +75,8 @@ const CustomPageDetail = () => {
                       className="w-full h-48 object-cover rounded"
                     />
                   ) : media.mediaType.startsWith('video/') ? (
-                      <video
-                        src={resolveMediaUrl(media.mediaUrl)}
+                    <video
+                      src={resolveMediaUrl(media.mediaUrl)}
                       controls
                       className="w-full h-48 object-cover rounded"
                     />

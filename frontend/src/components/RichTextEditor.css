@@ -113,7 +113,7 @@
   line-height: 1.7;
 }
 
-.editor-content .ProseMirror li > p {
+.editor-content .ProseMirror li>p {
   @apply mb-2;
 }
 
@@ -245,4 +245,139 @@
 
 .editor-content .ProseMirror::-webkit-scrollbar-thumb:hover {
   @apply bg-gray-500;
+}
+
+/* ==========================================
+   Accordion (Раскрывающийся блок - Truncate style)
+   ========================================== */
+
+.accordion-wrapper {
+  @apply my-4;
+}
+
+.accordion-container {
+  @apply relative border border-gray-600 rounded-lg overflow-hidden;
+  background: rgba(31, 41, 55, 0.5);
+}
+
+.accordion-controls {
+  @apply flex items-center justify-between px-3 py-2 border-b border-gray-600;
+  background: rgba(55, 65, 81, 0.8);
+}
+
+.accordion-settings {
+  @apply p-3 border-b border-gray-600 space-y-3;
+  background: rgba(55, 65, 81, 1);
+}
+
+.accordion-content {
+  @apply p-4 overflow-hidden;
+  transition: max-height 0.4s ease-in-out;
+}
+
+.accordion-inner-content {
+  @apply text-gray-200;
+}
+
+.accordion-inner-content p {
+  @apply mb-3;
+}
+
+.accordion-inner-content img {
+  @apply rounded-lg max-w-full h-auto;
+}
+
+.accordion-expand-bar {
+  @apply border-t border-gray-600;
+  background: rgba(55, 65, 81, 0.5);
+}
+
+.accordion-expand-bar button {
+  @apply w-full px-4 py-2.5 flex items-center justify-center gap-2 text-sm text-gray-300;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.accordion-expand-bar button:hover {
+  @apply text-white;
+  background: rgba(75, 85, 99, 0.5);
+}
+
+/* ==========================================
+   Callout (Информационные блоки)
+   ========================================== */
+
+.callout-wrapper {
+  @apply my-4;
+}
+
+.callout-container {
+  @apply rounded-r-lg p-4;
+}
+
+.callout-content p {
+  @apply mb-0;
+}
+
+/* ==========================================
+   Spoiler (Спойлер)
+   ========================================== */
+
+.spoiler-wrapper {
+  @apply my-4;
+}
+
+.spoiler-container {
+  @apply border-2 border-purple-600 rounded-lg overflow-hidden;
+}
+
+.spoiler-header {
+  @apply flex items-center justify-between p-3;
+}
+
+.spoiler-content {
+  transition: max-height 0.3s ease, opacity 0.3s ease, padding 0.3s ease;
+}
+
+.spoiler-inner-content {
+  @apply text-gray-200;
+}
+
+/* ==========================================
+   Node View обёртки
+   ========================================== */
+
+.ProseMirror .accordion-wrapper,
+.ProseMirror .callout-wrapper,
+.ProseMirror .spoiler-wrapper {
+  @apply relative;
+}
+
+.ProseMirror .accordion-wrapper.ProseMirror-selectednode,
+.ProseMirror .callout-wrapper.ProseMirror-selectednode,
+.ProseMirror .spoiler-wrapper.ProseMirror-selectednode {
+  @apply outline outline-2 outline-highlight outline-offset-2;
+}
+
+/* ==========================================
+   Кнопки в новых блоках
+   ========================================== */
+
+.accordion-header button,
+.spoiler-header button,
+.callout-container button {
+  @apply opacity-60 hover:opacity-100 transition-opacity;
+}
+
+/* ==========================================
+   Responsive для новых блоков
+   ========================================== */
+
+@media (max-width: 640px) {
+  .accordion-header {
+    @apply flex-wrap gap-2;
+  }
+
+  .spoiler-header {
+    @apply flex-wrap gap-2;
+  }
 }
