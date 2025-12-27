@@ -505,7 +505,7 @@ const RichTextEditor = ({ content, onChange, placeholder = 'Начните пи�
       attributes: {
         class: 'prose prose-invert max-w-none focus:outline-none min-h-[500px] p-6',
       },
-      handleDrop: (view, event, slice, moved) => {
+      handleDrop: (_view, event, _slice, moved) => {
         if (!moved && event.dataTransfer?.files?.length) {
           const file = event.dataTransfer.files[0];
           if (file.type.startsWith('image/')) {
@@ -516,7 +516,7 @@ const RichTextEditor = ({ content, onChange, placeholder = 'Начните пи�
         }
         return false;
       },
-      handlePaste: (view, event) => {
+      handlePaste: (_view, event) => {
         const items = event.clipboardData?.items;
         if (items) {
           for (const item of items) {

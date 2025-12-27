@@ -76,7 +76,7 @@ interface LinkModalProps {
     initialText?: string;
 }
 
-export const LinkModal = ({ isOpen, onClose, onSubmit, initialUrl = '', initialText = '' }: LinkModalProps) => {
+export const LinkModal = ({ isOpen, onClose, onSubmit, initialUrl = '' }: LinkModalProps) => {
     const [url, setUrl] = useState(initialUrl);
     const inputRef = useRef<HTMLInputElement>(null);
 
@@ -211,8 +211,8 @@ export const ImageModal = ({ isOpen, onClose, onSubmit, onUpload }: ImageModalPr
                 {onUpload && (
                     <div
                         className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors cursor-pointer ${dragOver
-                                ? 'border-orange-500 bg-orange-500/10'
-                                : 'border-gray-600 hover:border-gray-500'
+                            ? 'border-orange-500 bg-orange-500/10'
+                            : 'border-gray-600 hover:border-gray-500'
                             }`}
                         onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); setDragOver(true); }}
                         onDragLeave={(e) => { e.stopPropagation(); setDragOver(false); }}

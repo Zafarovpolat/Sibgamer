@@ -1,20 +1,12 @@
 import { NodeViewWrapper, NodeViewContent } from '@tiptap/react';
-import { useState, useRef, useEffect } from 'react';
+import { useState } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faChevronDown, faChevronUp, faTrash, faGear } from '@fortawesome/free-solid-svg-icons';
+import { faChevronDown, faTrash, faGear } from '@fortawesome/free-solid-svg-icons';
 
 const AccordionComponent = ({ node, updateAttributes, deleteNode }: any) => {
-    const [isExpanded, setIsExpanded] = useState(true); // В редакторе всегда раскрыт для редактирования
     const [showSettings, setShowSettings] = useState(false);
     const [collapsedHeight, setCollapsedHeight] = useState(node.attrs.collapsedHeight || 150);
     const [title, setTitle] = useState(node.attrs.title || 'Раскрыть');
-
-    const toggleExpand = (e: React.MouseEvent) => {
-        e.preventDefault();
-        e.stopPropagation();
-        setIsExpanded(!isExpanded);
-        updateAttributes({ isExpanded: !isExpanded });
-    };
 
     const handleSettingsSave = (e: React.MouseEvent) => {
         e.preventDefault();
