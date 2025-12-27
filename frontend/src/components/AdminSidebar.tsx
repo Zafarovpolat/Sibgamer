@@ -1,6 +1,7 @@
 import { Link, useLocation } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faHome, faServer, faUsers, faImage, faTimes, faNewspaper, faCalendarAlt, faEnvelope, faDollarSign, faTags, faChartLine, faBell, faRobot, faFileAlt, faArrowLeft, faClipboardList } from '@fortawesome/free-solid-svg-icons';
+import { faBars } from '@fortawesome/free-solid-svg-icons';
 
 interface AdminSidebarProps {
   isOpen: boolean;
@@ -25,6 +26,7 @@ const AdminSidebar = ({ isOpen, onClose }: AdminSidebarProps) => {
     { path: '/admin/donation-tariffs', icon: faTags, label: 'Тарифы' },
     { path: '/admin/vip-applications', icon: faClipboardList, label: 'Заявки участника' },
     { path: '/admin/donation-monitoring', icon: faChartLine, label: 'Мониторинг' },
+    { path: '/admin/nav-sections', icon: faBars, label: 'Меню навигации' },
   ];
 
   return (
@@ -38,11 +40,10 @@ const AdminSidebar = ({ isOpen, onClose }: AdminSidebarProps) => {
             <Link
               key={item.path}
               to={item.path}
-              className={`flex items-center space-x-3 px-4 py-3 rounded-lg ${
-                location.pathname === item.path
-                  ? 'bg-highlight text-white shadow-lg shadow-highlight/30'
-                  : 'text-gray-300'
-              }`}
+              className={`flex items-center space-x-3 px-4 py-3 rounded-lg ${location.pathname === item.path
+                ? 'bg-highlight text-white shadow-lg shadow-highlight/30'
+                : 'text-gray-300'
+                }`}
             >
               <FontAwesomeIcon icon={item.icon} />
               <span>{item.label}</span>
@@ -61,9 +62,8 @@ const AdminSidebar = ({ isOpen, onClose }: AdminSidebarProps) => {
       </div>
 
       <div
-        className={`fixed top-0 left-0 h-full w-64 glass-card z-50 transform transition-transform duration-300 md:hidden ${
-          isOpen ? 'translate-x-0' : '-translate-x-full'
-        } overflow-y-auto sidebar-scroll`}
+        className={`fixed top-0 left-0 h-full w-64 glass-card z-50 transform transition-transform duration-300 md:hidden ${isOpen ? 'translate-x-0' : '-translate-x-full'
+          } overflow-y-auto sidebar-scroll`}
       >
         <div className="p-6">
           <div className="flex items-center justify-between mb-8">
@@ -84,11 +84,10 @@ const AdminSidebar = ({ isOpen, onClose }: AdminSidebarProps) => {
                 key={item.path}
                 to={item.path}
                 onClick={onClose}
-                className={`flex items-center space-x-3 px-4 py-3 rounded-lg ${
-                  location.pathname === item.path
-                    ? 'bg-highlight text-white shadow-lg shadow-highlight/30'
-                    : 'text-gray-300'
-                }`}
+                className={`flex items-center space-x-3 px-4 py-3 rounded-lg ${location.pathname === item.path
+                  ? 'bg-highlight text-white shadow-lg shadow-highlight/30'
+                  : 'text-gray-300'
+                  }`}
               >
                 <FontAwesomeIcon icon={item.icon} />
                 <span>{item.label}</span>

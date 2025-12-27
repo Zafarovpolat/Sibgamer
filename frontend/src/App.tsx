@@ -33,6 +33,7 @@ import DonationSuccess from './pages/DonationSuccess';
 import MemberApplication from './pages/MemberApplication';
 import Notifications from './pages/Notifications';
 import ProtectedRoute from './components/ProtectedRoute';
+import AdminNavSections from './pages/admin/AdminNavSections';
 import { useAuthStore } from './store/authStore';
 import { initServerTime } from './utils/dateUtils';
 import api from './lib/axios';
@@ -73,7 +74,7 @@ function App() {
           logout();
         }
       }
-      initServerTime().catch(() => {});
+      initServerTime().catch(() => { });
       setIsInitializing(false);
     };
 
@@ -228,6 +229,7 @@ function App() {
               <Route path="events" element={<AdminEvents />} />
               <Route path="custompages" element={<AdminCustomPages />} />
               <Route path="email" element={<AdminEmail />} />
+              <Route path="nav-sections" element={<AdminNavSections />} />
               <Route path="donation-settings" element={<AdminDonationSettings />} />
               <Route path="donation-tariffs" element={<AdminDonationTariffs />} />
               <Route path="donation-monitoring" element={<AdminDonationMonitoring />} />
@@ -238,8 +240,8 @@ function App() {
           </Routes>
         </div>
         <Toaster position="top-right" />
-        <SteamModal 
-          isOpen={showSteamModal} 
+        <SteamModal
+          isOpen={showSteamModal}
           onClose={handleSteamModalClose}
           onSuccess={handleSteamSuccess}
         />
