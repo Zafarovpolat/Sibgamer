@@ -155,7 +155,8 @@ const Navbar = () => {
             {/* Desktop Navigation */}
             <div className="hidden lg:flex items-center space-x-6 absolute left-1/2 transform -translate-x-1/2">
               {navSections.map((section) => (
-                <div key={section.id} className="relative" ref={el => el && dropdownRefs.current.set(section.id, el)}>
+                <div key={section.id} className="relative" ref={el => { if (el) dropdownRefs.current.set(section.id, el); }}
+                >
                   {section.type === 'link' ? (
                     // Simple link
                     renderLink(
