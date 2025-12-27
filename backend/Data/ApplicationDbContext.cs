@@ -48,6 +48,8 @@ public class ApplicationDbContext : DbContext
     public DbSet<TelegramSubscriber> TelegramSubscribers { get; set; }
     public DbSet<CustomPage> CustomPages { get; set; }
     public DbSet<CustomPageMedia> CustomPageMedia { get; set; }
+    public DbSet<NavSection> NavSections { get; set; }
+    public DbSet<NavSectionItem> NavSectionItems { get; set; }
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
@@ -263,6 +265,30 @@ public class ApplicationDbContext : DbContext
             .WithMany()
             .HasForeignKey(p => p.AuthorId)
             .OnDelete(DeleteBehavior.Restrict);
+
+        // ============================================
+        // Navigation Sections
+        // ============================================
+        modelBuilder.Entity<NavSection>()
+            .HasIndex(s => s.Order);
+
+        modelBuilder.Entity<NavSection>()
+            .HasIndex(s => s.IsPublished);
+
+        modelBuilder.Entity<NavSectionItem>()
+            .HasOne(i => i.Section)
+            .WithMany(s => s.Items)
+            .HasForeignKey(i => i.SectionId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<NavSectionItem>()
+            .HasOne(i => i.CustomPage)
+            .WithMany()
+            .HasForeignKey(i => i.CustomPageId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        modelBuilder.Entity<NavSectionItem>()
+            .HasIndex(i => new { i.SectionId, i.Order });
     }
 
     /// <summary>
