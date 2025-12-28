@@ -17,7 +17,7 @@
 | **Бэкенд API** | [sibgamer.onrender.com](https://sibgamer.onrender.com) |
 | **Swagger Docs** | [sibgamer.onrender.com/swagger](https://sibgamer.onrender.com/swagger) |
 | **GitHub** | [github.com/Zafarovpolat/sibgamer](https://github.com/Zafarovpolat/sibgamer) |
-| **Supabase DB** | [supabase.com/dashboard/project/oktzzeertnqlhrrvisqs](https://supabase.com/dashboard/project/oktzzeertnqlhrrvisqs) |
+| **Neon DB** | [console.neon.tech](https://console.neon.tech) |
 
 ---
 
@@ -27,7 +27,7 @@
 |-----------|------------|--------|
 | **Backend** | ASP.NET Core | 9.0 |
 | **Frontend** | React + Vite + TypeScript | 19.1.1 |
-| **База данных** | PostgreSQL (Supabase) | 15 |
+| **База данных** | PostgreSQL (Neon DB) | 15 |
 | **Редактор** | Tiptap | 3.7.2 |
 | **Стили** | TailwindCSS | 3.4.18 |
 | **Состояние** | Zustand | 5.0.8 |
@@ -42,8 +42,7 @@
 
 - **.NET SDK** 9.0+
 - **Node.js** 18+ (рекомендуется 20+)
-- **PostgreSQL** 15+ или MySQL 8.0+
-- **npm** 9+
+- **PostgreSQL** 15+ или Neon DB
 
 ---
 
@@ -80,6 +79,7 @@ cd sibgamer
 ```bash
 cd backend
 dotnet restore
+dotnet ef database update  # Применить миграции
 dotnet run
 ```
 
@@ -113,9 +113,9 @@ npm run dev
 ### 4. Создание администратора
 
 1. Зарегистрируйтесь через UI
-2. Выполните SQL:
+2. Выполните SQL (замените email):
 ```sql
-UPDATE users SET "IsAdmin" = true WHERE "Email" = 'your-email@example.com';
+UPDATE users SET is_admin = true WHERE email = 'admin@example.com';
 ```
 
 ---
@@ -125,25 +125,22 @@ UPDATE users SET "IsAdmin" = true WHERE "Email" = 'your-email@example.com';
 ```
 SibGamer/
 ├── backend/                    # ASP.NET Core API
-│   ├── BackgroundServices/     # Фоновые сервисы (Telegram, VIP, мониторинг)
-│   ├── Controllers/            # API контроллеры (25 шт.)
+│   ├── BackgroundServices/     # Фоновые сервисы (7)
+│   ├── Controllers/            # API контроллеры (26)
 │   ├── Data/                   # DbContext
 │   ├── DTOs/                   # Data Transfer Objects
 │   ├── Middleware/             # IP блокировка
-│   ├── Models/                 # Модели данных (16 шт.)
-│   ├── Services/               # Бизнес-логика (13 сервисов)
-│   ├── Utils/                  # Утилиты
-│   └── db/                     # SQL схема
+│   ├── Models/                 # Модели данных (17)
+│   ├── Services/               # Бизнес-логика (13)
+│   └── Migrations/             # EF Core миграции
 │
 └── frontend/                   # React SPA
     └── src/
-        ├── components/         # UI компоненты
-        ├── pages/              # Страницы (12 public + 14 admin)
-        ├── hooks/              # Кастомные хуки
+        ├── components/         # UI компоненты (28)
+        ├── pages/              # Страницы (12 public + 15 admin)
+        ├── hooks/              # Custom hooks
         ├── store/              # Zustand store
-        ├── types/              # TypeScript типы
         └── lib/                # Утилиты
-
 ```
 
 ---
@@ -153,7 +150,7 @@ SibGamer/
 | Проблема | Решение |
 |----------|---------|
 | CORS ошибка | Проверьте `FrontendUrl` в `appsettings.json` |
-| Нет подключения к БД | Проверьте connection string |
+| 500 на API | Проверьте миграции: `dotnet ef database update` |
 | Изображения не грузятся | Проверьте `ImageBaseUrl` и `VITE_IMAGE_BASE_URL` |
 | Telegram бот не работает | Проверьте токен в админ-панели |
 
@@ -161,8 +158,8 @@ SibGamer/
 
 ## 📋 Документация
 
-- [PROJECT_REVIEW.md](./PROJECT_REVIEW.md) — технический обзор и план доработки
-- [Tables.md](./Tables.md) — структура базы данных
+- [PROJECT_REVIEW.md](./PROJECT_REVIEW.md) — технический обзор
+- [Tables.md](./Tables.md) — структура базы данных (36 таблиц)
 - [CLIENT_GUIDE.md](./CLIENT_GUIDE.md) — руководство для заказчика
 
 ---
