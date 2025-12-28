@@ -205,7 +205,8 @@ const Navbar = () => {
             </Link>
 
             {/* Desktop Navigation - ИСПРАВЛЕНО: убран absolute, добавлен flex-1 */}
-            <div className="hidden lg:flex items-center justify-center flex-1 mx-4">
+            <div className="hidden xl:flex items-center justify-center flex-1 mx-4">
+
               <div className="flex items-center space-x-1">
                 {displaySections.map((section) => (
                   <div
@@ -340,7 +341,7 @@ const Navbar = () => {
             {/* Mobile menu button */}
             <button
               onClick={toggleMobileMenu}
-              className="lg:hidden text-2xl text-gray-300 p-2"
+              className="xl:hidden text-2xl text-gray-300 p-2"
             >
               <FontAwesomeIcon icon={showMobileMenu ? faTimes : faBars} />
             </button>
@@ -349,7 +350,7 @@ const Navbar = () => {
 
         {/* Mobile Menu */}
         {(showMobileMenu || isMenuAnimating) && (
-          <div className={`lg:hidden border-t border-gray-800 max-h-[calc(100vh-4rem)] overflow-y-auto ${showMobileMenu && !isMenuAnimating ? 'animate-slide-in' : 'animate-slide-out'}`}>
+          <div className={`xl:hidden border-t border-gray-800 max-h-[calc(100vh-4rem)] overflow-y-auto ${showMobileMenu && !isMenuAnimating ? 'animate-slide-in' : 'animate-slide-out'}`}>
             <div className="px-4 py-4 space-y-2">
               {isAuthenticated && user && (
                 <div className="flex items-center space-x-3 py-3 border-b border-gray-800 mb-4">

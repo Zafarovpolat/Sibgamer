@@ -9,7 +9,7 @@ namespace backend.Controllers.Admin;
 
 [ApiController]
 [Route("api/admin/nav-sections")]
-[Authorize(Roles = "admin")]
+[Authorize(Roles = "Admin")]
 public class AdminNavSectionsController : ControllerBase
 {
     private readonly ApplicationDbContext _context;
